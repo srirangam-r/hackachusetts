@@ -24,9 +24,9 @@ SLOTS = [(-0.10, -0.13), (-0.10, 0.0), (-0.10, 0.13), (0.02, -0.13), (0.02, 0.0)
          (0.14, -0.13), (0.14, 0.0), (0.14, 0.13)]
 INSTANCES = [f"{n}_{i + 1}" for n, k in GROCERIES for i in range(k)]
 # interleave categories so duplicates are not next to each other
-PLACEMENT = dict(zip(["ketchup_1", "butter_1", "orange_juice_1", "alphabet_soup_1", "ketchup_2", "milk_1",
-                      "milk_2", "tomato_sauce_1", "butter_2"], SLOTS))
-DEFAULT_INSTRUCTION = "put all the ketchup bottles in the basket and the butter boxes on the tray"
+PLACEMENT = dict(zip(["ketchup_1", "milk_2", "orange_juice_1", "alphabet_soup_1", "ketchup_2", "milk_1",
+                      "butter_1", "tomato_sauce_1", "butter_2"], SLOTS))
+DEFAULT_INSTRUCTION = "put the ketchup bottles in the basket and the soup cans on the tray"
 SCENE = "grocery_sort_scene"
 
 
@@ -109,6 +109,6 @@ def make_grocery_env(init_index: int = 0, arm: str = Arm.PANDA.value, seed: int 
 
     path = generate_bddl()
     env = LiberoEnv(path, init_states=None, init_index=0, arm=arm, suite="grocery_sort", seed=seed,
-                    task_name="grocery_sort", **{"settle_steps": 100, **kwargs})
+                    task_name="grocery_sort", **{"settle_steps": 100, "image_size": 512, **kwargs})
     env._runner_success = lambda: False           # free-text task: the brain decides when it is done
     return env

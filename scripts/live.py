@@ -52,7 +52,7 @@ def serve(root: Path, port: int) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--prompt", default="put all the ketchup bottles in the basket and the butter boxes on the tray")
+    ap.add_argument("--prompt", default="put the ketchup bottles in the basket and the soup cans on the tray")
     ap.add_argument("--arm", default="Panda")
     ap.add_argument("--model", default="auto")
     ap.add_argument("--name", default=time.strftime("live_%H%M%S"))

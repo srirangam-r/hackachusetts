@@ -93,6 +93,21 @@ def rot_angle(Ra: np.ndarray, Rb: np.ndarray) -> float:
     return float(np.arccos(np.clip((np.trace(Ra.T @ Rb) - 1) / 2, -1, 1)))
 
 
+def _same_rest_pose(seg, obj: ObjectEstimate) -> bool:
+    """A demo grasp is only valid if the object rests the same way up as in the demo (an upright bottle vs a
+    lying one). Compared by height: the live object's measured height vs the demo object's stored points.
+    Live points are a partial view and can only under-estimate height, so only the clear case is rejected:
+    the live object is much taller than the demo object (it stands where the demo one was lying)."""
+    P = seg.object_points
+    if P is None or len(P) < 10 or obj.extent is None:
+        return True
+    h_demo = float(P[:, 2].max() - P[:, 2].min())
+    h_live = float(obj.points_world[:, 2].max() - obj.points_world[:, 2].min()) if len(obj.points_world) else 0.0
+    if h_demo < 0.02 or h_live < 0.02:
+        return True
+    return h_live / h_demo <= 1.8
+
+
 def _typical_first(segs: list) -> list:
     """Try first the grasp segments whose close point lies inside the object's own height range.
 
@@ -400,7 +415,7 @@ class Skills:
             return SkillResult(Status.PERCEPTION_FAILED, f"pick: too few points on mark {obj.mark}")
         self._last_reason = ""
         if self._use_index():
-            segs = _typical_first(self._find_segments(SegmentKind.GRASP, obj))
+            segs = _typical_first([s for s in self._find_segments(SegmentKind.GRASP, obj) if _same_rest_pose(s, obj)])
             if not segs and self.motion_source == "index":
                 return SkillResult(Status.NO_CANDIDATE, f"pick: no demo of {obj.label} in motor memory")
             n_tried, failed = 0, None

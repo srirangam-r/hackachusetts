@@ -156,6 +156,7 @@ class Perception:
         # used as a surface (place on it), and localizing the knob would break placing on the stove.
         # The capability + `parts` helper exist for an actuation-aware caller (needs a skills change).
         self.localize_knobs = localize_knobs
+        self.rel_score = 0.6                     # keep instances >= 0.6 x the best score of their noun
         self.dropped: list[Dropped] = []      # what the last scan/refine dropped and why (Req 2.4)
 
     # ------------------------------------------------------------ building blocks
@@ -224,6 +225,15 @@ class Perception:
         self.dropped = []
         ests = self._estimates(cam, requested)
         if find:                                         # only retry explicit nouns, not the generic scan
+            # open-vocabulary false positives (a juice carton answering "butter box") score well below the
+            # real instance: per noun, keep instances scoring at least REL_SCORE x that noun's best score
+            best: dict[str, float] = {}
+            for e in ests:
+                best[e.label] = max(best.get(e.label, 0.0), e.score)
+            for e in ests:
+                if e.score < self.rel_score * best[e.label]:
+                    self.dropped.append(Dropped(e.label, f"score {e.score:.2f} < {self.rel_score} x best", e.score))
+            ests = [e for e in ests if e.score >= self.rel_score * best[e.label]]
             found = {e.label for e in ests}
             ests += self._retry_missing(cam, [n for n in requested if n not in found])
             if self.localize_knobs:                      # point a flat/wide object's frame at its knob
