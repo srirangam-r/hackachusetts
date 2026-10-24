@@ -94,28 +94,22 @@ def rot_angle(Ra: np.ndarray, Rb: np.ndarray) -> float:
 
 
 def _typical_first(segs: list) -> list:
-    """Order grasp segments by how typical their grasp point is among the demos of the same object.
+    """Try first the grasp segments whose close point lies inside the object's own height range.
 
-    Human demos vary (one closes a 2 cm box at its top edge, most close at its middle). Trying the demo
-    whose close pose (object frame) is nearest the per-object median first makes retrieval robust to outlier
-    demos. Generic: no task or object knowledge, only the demos themselves.
+    Human demos vary; an occasional demo closes at or above the top of a flat object (e.g. a 2 cm box) and
+    only worked thanks to finger compliance. A grasp must close where the object is, so segments whose
+    close point (object frame) is within the object's z-extent go first; otherwise the query order is kept.
+    Generic: uses only the demo's own stored object points.
     """
-    if len(segs) < 3:
-        return segs
+    def inside(s) -> bool:
+        k = min(max(int(s.meta.get("key_index", len(s.T_obj_eef) - 1)), 0), len(s.T_obj_eef) - 1)
+        z = float(s.T_obj_eef[k][2, 3])
+        P = s.object_points
+        if P is None or len(P) == 0:
+            return True
+        return float(P[:, 2].min()) - 0.002 <= z <= float(P[:, 2].max()) - 0.002
 
-    def close_pos(s):
-        k = s.meta.get("key_index", len(s.T_obj_eef) - 1)
-        k = min(max(int(k), 0), len(s.T_obj_eef) - 1)
-        return s.T_obj_eef[k][:3, 3]
-
-    groups: dict[str, list] = {}
-    for s in segs:
-        groups.setdefault(s.object_name, []).append(s)
-    med = {n: np.median(np.stack([close_pos(s) for s in g_]), axis=0) for n, g_ in groups.items()}
-    rank = {id(s): i for i, s in enumerate(segs)}
-    # keep the object-name order of the query (best name match first), typical demos first within a name
-    return sorted(segs, key=lambda s: (min(rank[id(t)] for t in groups[s.object_name]),
-                                       float(np.linalg.norm(close_pos(s) - med[s.object_name]))))
+    return sorted(segs, key=lambda s: 0 if inside(s) else 1)
 
 
 class Skills:
