@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "robot": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "motormem.brain.mcp_server"],
+      "env": {
+        "MOTORMEM_BACKEND": "fake",
+        "ROBOT_EPISODE": "${PLUGIN_DATA}/episode.json",
+        "MUJOCO_GL": "egl"
+      }
+    }
+  }
+}

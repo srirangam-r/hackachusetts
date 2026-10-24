@@ -269,14 +269,14 @@ def _env(name: str, default: str | None = None) -> str | None:
 def session_from_env() -> RobotSession:
     path = _env("ROBOT_EPISODE")
     max_calls = int(_env("ROBOT_MAX_TOOL_CALLS", "10"))
-    if not path:
+    if not path or not Path(path).is_file():                 # e.g. the power's default, before a spec is written
         return RobotSession(None, None, max_tool_calls=max_calls)
     spec, extras = load_spec(path)
     if not spec.out_dir:
         spec.out_dir = str(Path(path).resolve().parent)
     from motormem.brain.backend import make_backend
     kind = _env("MOTORMEM_BACKEND") or extras.get("backend", "fake")
-    return RobotSession(spec, lambda s: make_backend(s, kind), extras, max_tool_calls=max_calls)
+    return RobotSession(spec, lambda s: make_backend(s, kind, record=bool(extras.get("record"))), extras, max_tool_calls=max_calls)
 
 
 def main() -> None:

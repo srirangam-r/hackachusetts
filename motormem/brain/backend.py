@@ -399,7 +399,7 @@ class RealBackend:
     Marks resolve to the `ObjectEstimate`s of the last observe. Untested until integration.
     """
 
-    def __init__(self, spec: EpisodeSpec):
+    def __init__(self, spec: EpisodeSpec, record: bool = False):
         from motormem.env import make_env                      # lazy: other streams
         from motormem.memory import MotorMemory
         from motormem.skills import Skills
@@ -434,6 +434,11 @@ class RealBackend:
         self.fallbacks = 0
         self.statuses: list[str] = []
         self.summary: str | None = None
+        self.n_runs = 0
+        self.rec = None
+        if record and spec.out_dir:                           # media only (brain/recording.py)
+            from motormem.brain.recording import Recorder
+            self.rec = Recorder(self.env, spec.out_dir)
 
     def _to_base(self, p_world: np.ndarray) -> np.ndarray:
         T = self.obs.T_world_base
@@ -488,15 +493,20 @@ class RealBackend:
 
     def run(self, calls: list[Call]) -> tuple[list[str], list[Image.Image], str]:
         lines: list[str] = []
+        self.n_runs += 1
         for i, call in enumerate(calls, start=1):
             if self.over:
                 lines.append(status_line(i, call, Status.EPISODE_OVER, ""))
                 continue
+            if self.rec:
+                self.rec.begin(format_call(call), self.n_runs)
             try:
                 res = self._exec(call)
             except Exception as e:                            # never crash the episode
                 from motormem.types import SkillResult
                 res = SkillResult(Status.ERROR, f"{type(e).__name__}: {str(e)[:120]}")
+            if self.rec:
+                self.rec.end(res.segment_id, res.status.value)
             if res.segment_id:
                 self.segment_ids.append(res.segment_id)
             self.fallbacks += int(res.used_fallback)
@@ -533,18 +543,20 @@ class RealBackend:
                 "skill_statuses": list(self.statuses), "backend": "real"}
 
     def close(self) -> None:
+        if self.rec:
+            self.rec.close()
         close = getattr(self.env, "close", None)
         if close:
             close()
 
 
 # ============================================================================ factory
-def make_backend(spec: EpisodeSpec, kind: str | None = None) -> Backend:
+def make_backend(spec: EpisodeSpec, kind: str | None = None, record: bool = False) -> Backend:
     kind = kind or os.environ.get("MOTORMEM_BACKEND", "fake")
     if kind == "fake":
         return FakeBackend(spec)
     if kind == "real":
-        return RealBackend(spec)
+        return RealBackend(spec, record=record)
     raise ValueError(f"unknown backend {kind!r} (fake|real)")
 
 
