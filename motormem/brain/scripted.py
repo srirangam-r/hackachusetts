@@ -32,7 +32,9 @@ LIBERO_GOAL: dict[int, tuple[list[str], list[Step]]] = {
                                           Step("pick", "black bowl"),
                                           Step("place", "drawer handle", "in", by_height="top")]),
     4: (["black bowl", "cabinet"], [Step("pick", "black bowl"), Step("place", "cabinet", "top_of")]),
-    5: (["plate", "stove"], [Step("push_to", "plate", "stove", (-0.17, 0.0))]),   # front = toward robot
+    # "front of the stove" = the stove_front_region, which sits ~18 cm in +x (forward, away from the
+    # robot) of the segmented stove centroid in the base frame; same y as the stove.
+    5: (["plate", "stove"], [Step("push_to", "plate", "stove", (0.18, 0.0))]),
     6: (["cream cheese", "black bowl"], [Step("pick", "cream cheese"), Step("place", "black bowl", "in")]),
     7: (["stove"], [Step("actuate", "stove", "turn_on")]),
     8: (["black bowl", "plate"], [Step("pick", "black bowl"), Step("place", "plate", "on")]),

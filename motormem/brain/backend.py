@@ -166,9 +166,15 @@ class FakeBackend:
         for k, (name, z) in enumerate([("top drawer", 0.25), ("middle drawer", 0.15), ("bottom drawer", 0.05)]):
             O[name] = _Obj(name, np.array([cab[0] - 0.13, cab[1] - 0.06 + 0.06 * k, z]),
                            np.array([0.03, 0.05, 0.02]), (205, 160, 90), "drawer")
+            # Each drawer carries a small handle the segmenter can find as "drawer handle"; actuating
+            # the handle opens/closes its drawer (kept in `support`).
+            hz = z
+            O[f"{name} handle"] = _Obj(f"{name} handle", np.array([cab[0] - 0.15, cab[1] - 0.06 + 0.06 * k, hz]),
+                                       np.array([0.02, 0.04, 0.015]), (120, 120, 120), "handle",
+                                       support=("of", name))
         add("stove", 0.62, -0.22, (0.20, 0.20, 0.03), (70, 70, 70), "knob")
         add("wine rack", 0.78, -0.02, (0.10, 0.16, 0.12), (120, 70, 35), "fixture")
-        add("plate", 0.40, -0.12, (0.18, 0.18, 0.02), (230, 230, 230))
+        add("plate", 0.56, -0.20, (0.18, 0.18, 0.02), (230, 230, 230))
         add("black bowl", 0.48, 0.08, (0.12, 0.12, 0.06), (25, 25, 25))
         add("cream cheese", 0.38, 0.20, (0.07, 0.04, 0.04), (235, 220, 120))
         add("wine bottle", 0.55, -0.02, (0.07, 0.07, 0.25), (110, 20, 45))
@@ -191,7 +197,7 @@ class FakeBackend:
             return on("black bowl", "cabinet")
         if t == 5:
             st = o["stove"].xyz
-            target = np.array([st[0] - 0.17, st[1]])
+            target = np.array([st[0] + 0.18, st[1]])    # front of the stove = +x (forward) of its centre
             return self.holding != "plate" and np.linalg.norm(o["plate"].xyz[:2] - target) < 0.06
         if t == 6:
             return on("cream cheese", "black bowl", ("in", "on"))
@@ -265,6 +271,10 @@ class FakeBackend:
             known = ", ".join(map(str, sorted(self._mark_label))) or "none; call observe first"
             return Status.BAD_ARGUMENT, f"unknown mark {call.mark} (current marks: {known})"
         o = self.objs[label]
+        # a handle stands in for its drawer: resolve actuate/place targets to the drawer itself
+        if o.kind == "handle" and o.support is not None:
+            o = self.objs[o.support[1]]
+            label = o.label
         if call.name == "look":
             x, y, z = (100 * o.xyz).tolist()
             return Status.OK, f"{label} at x={x:.1f} y={y:.1f} z={z:.1f} cm"
@@ -474,6 +484,8 @@ class RealBackend:
             known = ", ".join(map(str, sorted(self.estimates))) or "none; call observe first"
             return SkillResult(Status.BAD_ARGUMENT, f"unknown mark {call.mark} (current marks: {known})")
         if call.name == "pick":
+            if call.part is not None:                     # contact stream adds the `part=` keyword
+                return self.skills.pick(est, part=call.part)
             return self.skills.pick(est)
         if call.name == "place":
             return self.skills.place(est, call.args[1])
