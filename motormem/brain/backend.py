@@ -557,5 +557,20 @@ def instruction_for(spec: EpisodeSpec, kind: str = "fake") -> str:
         return env_instruction(spec)
     except ImportError:
         pass
+    try:                                                      # LIBERO / LIBERO-Pro: read the task's BDDL file
+        from motormem.env.libero import PRO_SUITES, STANDARD_SUITES, resolve_task
+        if spec.suite in STANDARD_SUITES or spec.suite in PRO_SUITES:
+            from libero.libero.envs.bddl_utils import get_problem_info
+            instr = get_problem_info(str(resolve_task(spec.suite, spec.task_id).bddl_file))["language_instruction"]
+            return " ".join(instr) if isinstance(instr, (list, tuple)) else str(instr)
+    except ImportError:
+        pass
+    if spec.suite in ("desk_sort", "bin_sort"):              # custom scenes: build the env once for its text
+        from motormem.env import make_env
+        env = make_env(spec)
+        try:
+            return env.instruction
+        finally:
+            env.close()
     from libero.libero import benchmark                       # standard LIBERO suites
     return benchmark.get_benchmark_dict()[spec.suite]().get_task(int(spec.task_id)).language
