@@ -114,7 +114,8 @@ class Skills:
         return self._run("pick", self._pick, obj)
 
     def place(self, target: ObjectEstimate, relation: str = "on") -> SkillResult:
-        return self._run("place", self._place, target, relation)
+        from motormem.skills.targets import parent_of
+        return self._run("place", self._place, parent_of(self, target), relation)
 
     def push(self, obj: ObjectEstimate, dx: float, dy: float) -> SkillResult:
         return self._run("push", self._push, obj, dx, dy)
