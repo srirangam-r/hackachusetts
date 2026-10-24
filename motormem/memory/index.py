@@ -25,10 +25,16 @@ SYNONYMS: dict[str, list[str]] = {
     "bin": ["bin"], "cereal": ["cereal"], "bread": ["bread"],
 }
 STOP = {"the", "a", "an", "of", "to", "on", "in", "and", "with", "that", "this", "object", "thing", "it", "its"}
+# attribute words: if a label says one, the name must contain it ("black book" is never yellow_book)
+ATTRS = {"black", "white", "red", "yellow", "blue", "green", "orange", "purple", "pink", "brown", "gray",
+         "silver", "gold", "wooden", "metal", "glass", "plastic", "porcelain", "ceramic"}
+ALIAS = {"wood": "wooden", "grey": "gray", "metallic": "metal"}
+# container words that do not identify an object when unmatched ("ketchup bottle" is ketchup)
+GENERIC = {"bottle", "can", "box", "carton", "jar", "pack", "packet", "container", "bag", "tin"}
 
 
 def _tok(s: str) -> list[str]:
-    return [t for t in re.split(r"[^a-z0-9]+", s.lower()) if t and t not in STOP]
+    return [ALIAS.get(t, t) for t in re.split(r"[^a-z0-9]+", s.lower()) if t and t not in STOP]
 
 
 def _plural(t: str) -> str:
@@ -75,21 +81,36 @@ class MotorMemory:
         return {s.demo_id for s in self.segments}
 
     # ------------------------------------------------------------ names
-    def canonical(self, label: str) -> str | None:
-        """Map free text ("black bowl", "the stove") to a canonical object name known to this memory."""
+    def _all_names(self) -> set[str]:
+        out = set()
+        for s in self._segments:
+            out.add(s.object_name)
+            if s.held_name:
+                out.add(s.held_name)
+        return out
+
+    def _best_name(self, label: str) -> str | None:
+        """Best name for `label` among ALL recorded names, excluded ones included.
+
+        A name qualifies only if every distinctive label word (attribute, category noun or synonym word)
+        matches it, so "black book" can be black_book but never yellow_book or akita_black_bowl, while
+        "book" may be any book. Unknown words ("top", "left") are ignored.
+        """
         if not label:
             return None
-        names = self.names()
+        names = self._all_names()
         raw = label.strip().lower().replace(" ", "_")
         if raw in names:
             return raw
         toks = [_plural(t) for t in _tok(label)]
         if not toks:
             return None
-        best, best_score = None, 0.0
+        distinct = (ATTRS | {_plural(n.split("_")[-1]) for n in names} | set(SYNONYMS)) - GENERIC
+        visible = self.names()
         counts: dict[str, int] = {}
         for s in self.segments:
             counts[s.object_name] = counts.get(s.object_name, 0) + 1
+        best, best_key = None, None
         for n in names:
             ntok = {_plural(t) for t in n.split("_")}
             score = 0.0
@@ -98,13 +119,24 @@ class MotorMemory:
                     score += 1.0
                 elif any(n == syn or set(syn.split("_")) <= ntok for syn in SYNONYMS.get(t, [])):
                     score += 0.9
+                elif t in distinct:
+                    score = -1.0
+                    break
             if score <= 0:
                 continue
-            # prefer names that explain the label with few extra tokens; then frequent names
-            score = score - 0.05 * len(ntok - set(toks)) + 1e-4 * counts.get(n, 0)
-            if score > best_score:
-                best, best_score = n, score
+            # fewest unexplained name tokens first; then visible over excluded, then frequent names
+            key = (round(score - 0.05 * len(ntok - set(toks)), 3), n in visible, counts.get(n, 0), n)
+            if best_key is None or key > best_key:
+                best, best_key = n, key
         return best
+
+    def canonical(self, label: str) -> str | None:
+        """Map free text ("black bowl", "the stove") to a canonical object name known to this memory.
+
+        Returns None when nothing matches or when the best match is an excluded object.
+        """
+        best = self._best_name(label)
+        return best if best is not None and best in self.names() else None
 
     def _canon_or_self(self, name: str | None) -> str | None:
         if name is None:
@@ -113,14 +145,23 @@ class MotorMemory:
 
     # ------------------------------------------------------------ queries
     def query(self, kind: SegmentKind, object_name: str | None = None, relation: str | None = None,
-              held_name: str | None = None, extent: np.ndarray | None = None, k: int = 8) -> list[Segment]:
-        """Exact canonical name (+ relation, + held) first, then same kind ranked by extent similarity."""
+              held_name: str | None = None, extent: np.ndarray | None = None, k: int = 8,
+              strict: bool = False) -> list[Segment]:
+        """Exact canonical name (+ relation, + held) first, then same kind ranked by extent similarity.
+
+        strict=True: only segments of exactly the requested object (and held object, when given); an
+        unknown or excluded name returns [].
+        """
         kind = SegmentKind(kind)
         cands = [s for s in self.segments if s.kind == kind]
-        if not cands:
-            return []
         name = self._canon_or_self(object_name)
         held = self._canon_or_self(held_name)
+        if strict:
+            if name is None:
+                return []
+            cands = [s for s in cands if s.object_name == name and (held is None or s.held_name == held)]
+        if not cands:
+            return []
         if extent is None and name is not None:
             exts = [s.meta.get("extent") for s in cands if s.object_name == name and s.meta.get("extent") is not None]
             if exts:
@@ -166,9 +207,11 @@ class MotorMemory:
     def without(self, objects=(), demo_ids=()) -> "MotorMemory":
         """Filtered view (no copy of the segment arrays). Objects may be free text or canonical."""
         objs = set()
+        known = self._all_names()
         for o in objects:
             objs.add(o)
-            c = self.canonical(o)
+            raw = o.strip().lower().replace(" ", "_")
+            c = raw if raw in known else (None if "_" in o else self._best_name(o))
             if c:
                 objs.add(c)
         m = MotorMemory.__new__(MotorMemory)

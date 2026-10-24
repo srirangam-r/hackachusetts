@@ -158,10 +158,22 @@ class Skills:
         except Exception:
             return None
 
-    def _query(self, kind: SegmentKind, obj: ObjectEstimate, **kw) -> list[Segment]:
+    def _query(self, kind: SegmentKind, obj: ObjectEstimate, strict: bool = False, **kw) -> list[Segment]:
+        """Segments for obj. strict=True: only demos of exactly this object (and held object, if given)."""
         name = self._canonical(obj.label)
-        segs = self.memory.query(kind, object_name=name, extent=None if name else obj.extent, **kw)
-        return list(segs or [])
+        if strict and name is None:
+            return []
+        ext = None if name else obj.extent
+        try:
+            segs = self.memory.query(kind, object_name=name, extent=ext, strict=True, **kw) if strict \
+                else self.memory.query(kind, object_name=name, extent=ext, **kw)
+        except TypeError:  # memory without a `strict` parameter: filter below
+            segs = self.memory.query(kind, object_name=name, extent=ext, **kw)
+        segs = list(segs or [])
+        if strict:
+            held = kw.get("held_name")
+            segs = [s for s in segs if s.object_name == name and (held is None or s.held_name == held)]
+        return segs
 
     def _register(self, src: np.ndarray, dst: np.ndarray) -> list[tuple[np.ndarray, float, float]]:
         key = (src.shape, src[:4].tobytes(), dst.shape, dst[:4].tobytes())
@@ -210,8 +222,8 @@ class Skills:
             self.ctrl.gripper(-1.0, 10)
 
     # ================================================================ pick
-    def _grasp_plans(self, obj: ObjectEstimate) -> Iterator[Plan]:
-        for seg in self._query(SegmentKind.GRASP, obj):
+    def _grasp_plans(self, obj: ObjectEstimate, segs: list[Segment]) -> Iterator[Plan]:
+        for seg in segs:
             yield from self._segment_plans(seg, obj, close=True)
 
     def _segment_plans(self, seg: Segment, obj: ObjectEstimate, close: bool,
@@ -256,8 +268,11 @@ class Skills:
             return SkillResult(Status.PERCEPTION_FAILED, f"pick: too few points on mark {obj.mark}")
         self._last_reason = ""
         if self._use_index():
+            segs = self._query(SegmentKind.GRASP, obj, strict=True)
+            if not segs and self.motion_source == "index":
+                return SkillResult(Status.NO_CANDIDATE, f"pick: no demo of {obj.label} in motor memory")
             n_tried, failed = 0, None
-            for plan in self._grasp_plans(obj):
+            for plan in self._grasp_plans(obj, segs):
                 n_tried += 1
                 res = self._do_grasp(plan, obj)
                 if res.status == Status.OK or n_tried >= 2:
@@ -388,7 +403,12 @@ class Skills:
         self._last_reason = ""
         if self._use_index():
             held_name = self.held.name if self.held else None
-            segs = self._query(SegmentKind.PLACE, target, relation=relation, held_name=held_name)
+            segs = self._query(SegmentKind.PLACE, target, strict=True, relation=relation, held_name=held_name)
+            if not segs and held_name is not None and self.motion_source == "hybrid":
+                # cross-object reuse: any held object placed on/in this same target
+                segs = self._query(SegmentKind.PLACE, target, strict=True, relation=relation)
+            if not segs and self.motion_source == "index":
+                return SkillResult(Status.NO_CANDIDATE, f"place: no demo of {target.label} in motor memory")
             for seg in segs:
                 for plan in self._segment_plans(seg, target, close=False, correct=self._held_corrections):
                     self._execute(plan, close=False)
