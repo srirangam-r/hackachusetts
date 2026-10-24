@@ -85,6 +85,15 @@ None of the registry powers fit a MuJoCo robot harness (the registry is mostly c
 - **Token budget:** halfway through, the user asked us to save tokens. Sub-agents and the runtime brain switched to the `auto` model, and only the coordinator stayed on Opus.
 - **Runtime brain cost:** about 2–5 MCP tool calls per episode, typically 10–40 s of brain time.
 
+## What we did with Claude Code
+
+We ran out of Kiro credits near the end of the hackathon. The last pieces were built with Claude Code:
+- the redesign of the live demo page (`scripts/live.py`, `scripts/live_page.html`): Kiro's turns, the marked images Kiro sees, the human demo behind each motion, and the timeline;
+- the demo video ([`video/`](../video/), Remotion) and the UR5e clip recorded for it;
+- a couple of late fixes, such as making the data paths and the brain agent's interpreter path work in a fresh clone.
+
+Everything else in this repo, including the spec, steering, hooks, tests and the robot harness itself, was built with Kiro. Kiro is still the robot's brain in every run, the live demo included.
+
 ## Feedback
 
 See [kiro-feedback.md](kiro-feedback.md) for friction points and suggestions we logged as we built.

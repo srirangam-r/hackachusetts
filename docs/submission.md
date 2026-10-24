@@ -32,6 +32,7 @@ See [kiro-usage.md](kiro-usage.md). Short version:
 - **MCP:** alphaXiv for the literature review; our own robot MCP server.
 - **A custom power** packaging the harness.
 - **Kiro as the runtime robot brain,** with swappable models.
+- **Transparency:** after our Kiro credits ran out, the demo video, the live demo page and a couple of late fixes were done with Claude Code. Kiro is still the robot's brain in every run.
 
 ## Testing instructions
 `README.md` → Setup / Run. A sim-free dry run: `python -m motormem.brain.runner --backend fake --suite libero_goal --tasks 8 --episodes 1 --name dry`. A full run needs the LIBERO demos (HF `yifengzhu-hf/LIBERO-datasets`), SAM 3 access (HF `facebook/sam3`) and `kiro-cli`.

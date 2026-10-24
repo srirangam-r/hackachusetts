@@ -10,6 +10,10 @@ There's no code generation in the loop, no fine-tuned VLA and no practice on the
 
 Hackachusetts, Robotics & Hardware track. How we used Kiro: [docs/kiro-usage.md](docs/kiro-usage.md). Architecture: [docs/architecture.md](docs/architecture.md).
 
+**Demo video (2 min):** [docs/media/motor_memory.mp4](docs/media/motor_memory.mp4), storyboard in [docs/video-script.md](docs/video-script.md).
+
+Built with Kiro, which is also the robot's brain at run time. After our Kiro credits ran out, the demo video, the live demo page and a couple of late fixes were done with Claude Code ([details](docs/kiro-usage.md#what-we-did-with-claude-code)).
+
 ## How it works
 
 ```
@@ -122,10 +126,11 @@ motormem/
   memory/       demo replay, segmentation into skills, object-frame index
   skills/       OSC tracking, IK feasibility, pick/place/push/actuate, articulation, primitive fallback
   brain/        program parser, robot MCP server, episode runner
-scripts/        build_index, scene_demo, perception_check, skills_smoke, hooks/
+scripts/        build_index, scene_demo, live (demo server + live_page.html), make_video, hooks/
 tests/          one file per module; Hypothesis property tests in test_*_props.py
 .kiro/          spec, steering, hooks, robot-brain agent, MCP config
-docs/           architecture, Kiro usage, Kiro feedback, activity log
+docs/           architecture, Kiro usage, Kiro feedback, activity log, video script, media/ (demo video)
+video/          Remotion source of the demo video (see video/README.md)
 ```
 
 ## Limitations
