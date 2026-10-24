@@ -108,6 +108,8 @@ class Skills:
         self.home_pose = self.ctrl.pose().copy()
         self.held: Held | None = None
         self._reg_cache: dict = {}
+        self._placed_label: str | None = None
+        self._placed_centroid: np.ndarray | None = None
 
     # ================================================================ public skills
     def pick(self, obj: ObjectEstimate) -> SkillResult:
@@ -481,25 +483,79 @@ class Skills:
                 segs = self._find_segments(SegmentKind.PLACE, target, relation=relation, held_name=held_name)
             if not segs and self.motion_source == "index":
                 return SkillResult(Status.NO_CANDIDATE, f"place: no demo of {target.label} in motor memory")
+            # gather feasible place plans (lazily); keep at most two so we can retry once if the first misses
+            plans = []
             for seg in segs:
                 for plan in self._segment_plans(seg, target, close=False, correct=self._held_corrections):
-                    self._execute(plan, close=False)
-                    return self._finish_place(target, relation, plan.segment_id, False, plan.info)
+                    plans.append(plan)
+                    if len(plans) >= 2:
+                        break
+                if len(plans) >= 2:
+                    break
+            if plans:
+                return self._place_with_retry(target, relation,
+                                              [(p.segment_id, False, p.info, p) for p in plans])
             if self.motion_source == "index":
                 st = Status.IK_FAILURE if self._last_reason else Status.NO_CANDIDATE
                 return SkillResult(st, f"place: no feasible '{relation}' segment for '{target.label}'"
                                    + (f" ({self._last_reason})" if self._last_reason else ""))
-        res = self._primitive_place(target, relation)
-        res.used_fallback = True
-        return res
+        return self._place_with_retry(target, relation, [(None, True, None, None)])
+
+    def _place_with_retry(self, target, relation, attempts) -> SkillResult:
+        """Execute place attempts in order; verify each; retry once if a verified failure is still
+        graspable and another attempt remains. `attempts` items are (seg_id, fallback, info, plan)."""
+        last = None
+        for i, (seg_id, fallback, info, plan) in enumerate(attempts):
+            if plan is not None:
+                self._execute(plan, close=False)
+                res = self._finish_place(target, relation, seg_id, fallback, info)
+            else:
+                res = self._primitive_place(target, relation)
+                res.used_fallback = True
+            last = res
+            if res.status != Status.OK:                 # release/IK failure: let the brain handle it
+                return res
+            # OK means released; now check the spatial outcome with perception
+            ok, reason, still_graspable = self._verify_place(target, relation)
+            if ok:
+                return res
+            # Only retry when the object is still in the gripper (a re-place can help); once it has
+            # been released a second place would just disturb the scene, so report STALL and let the
+            # brain re-pick and retry.
+            if self.ctrl.holding() and i + 1 < len(attempts):
+                continue
+            res.status = Status.STALL
+            res.message = f"placed but not {relation} {target.label}: {reason}"
+            return res
+        return last
+
+    def _verify_place(self, target: ObjectEstimate, relation: str) -> tuple[bool, str, bool]:
+        """(holds, reason, still_graspable). Uses perception + proprioception only (fairness)."""
+        from motormem.skills.verify import locate, relation_holds
+        if self.perception is None:
+            return True, "", False                       # no perception (unit tests): trust the release
+        held_label = self._placed_label or (self.held.label if self.held else None)
+        t_near = np.asarray(target.T_world_obj, float)[:3, 3]
+        held_near = self._placed_centroid if self._placed_centroid is not None else t_near
+        held_now = locate(self, held_label, held_near, radius=0.20) if held_label else None
+        tgt_now = locate(self, target.label, t_near, radius=0.20) or target
+        if held_now is None:
+            return True, "could not re-locate the placed object", False
+        base = self.ctrl.obs.T_world_base
+        holds, reason = relation_holds(held_now, tgt_now, relation, T_world_base=base)
+        still = bool(held_now.extent[:2].max() <= self._gripper_geometry()[0] + 0.02)
+        return holds, reason, still
 
     def _finish_place(self, target, relation, seg_id, fallback, info=None) -> SkillResult:
+        held = self.held.label if self.held else "object"
+        # remember what/where we released so verification can re-locate it after the gripper clears
+        self._placed_label = held
+        self._placed_centroid = self.ctrl.pose()[:3, 3].copy()
         self.ctrl.track(self._lifted(self.ctrl.pose(), 0.05), -1.0)
         obs = self.ctrl.refresh()
         if self.ctrl.holding(obs):
             return SkillResult(Status.GRASP_FAILED, "place: object still in gripper after release",
                                segment_id=seg_id, used_fallback=fallback)
-        held = self.held.label if self.held else "object"
         self.held = None
         return SkillResult(Status.OK, f"placed {held} {relation} {target.label} (mark {target.mark})",
                            segment_id=seg_id, used_fallback=fallback, info=info or {})
@@ -589,14 +645,71 @@ class Skills:
         gr = np.concatenate([np.full(len(app), grip[s]), grip[s + 1:ib + 1], np.full(len(tail), grip[ib])])
         return targets, np.where(gr > 0, 1.0, -1.0), len(app)
 
+    PUSH_TOL = 0.03          # stop when the remaining displacement is below this (metres)
+    PUSH_MAX_STROKES = 3
+
     def _push(self, obj: ObjectEstimate, dx: float, dy: float) -> SkillResult:
-        d = np.array([dx, dy], dtype=float)
-        dist = float(np.linalg.norm(d))
-        if not np.isfinite(dist) or dist < 0.005 or dist > 0.4:
-            return SkillResult(Status.BAD_ARGUMENT, f"push: distance {dist:.3f} m outside 0.005..0.4")
+        """Closed loop: push, re-measure the object, and push again toward the remaining displacement
+        (at most PUSH_MAX_STROKES strokes), then report the measured final displacement."""
+        from motormem.skills.verify import locate
+        d0 = np.array([dx, dy], dtype=float)
+        dist0 = float(np.linalg.norm(d0))
+        if not np.isfinite(dist0) or dist0 < 0.005 or dist0 > 0.4:
+            return SkillResult(Status.BAD_ARGUMENT, f"push: distance {dist0:.3f} m outside 0.005..0.4")
         if obj.points_world is None or len(obj.points_world) < 20:
             return SkillResult(Status.PERCEPTION_FAILED, f"push: too few points on mark {obj.mark}")
-        u = d / dist
+        start_xy = np.asarray(obj.T_world_obj, float)[:2, 3].copy()
+        base_R = self.ctrl.obs.T_world_base[:3, :3]
+        target_xy = start_xy + (base_R[:2, :2] @ d0)          # world-frame goal position
+        # Cap each stroke at the skill budget so a single stalled stroke cannot starve the loop; the
+        # loop re-measures between strokes and reports measured progress rather than a bare TIMEOUT
+        # (this is the UR5e task-5 fix: one long stroke used to exhaust the 500-step budget).
+        stroke_cap = self.step_budget
+        cur_obj = obj
+        last = None
+        for stroke in range(self.PUSH_MAX_STROKES):
+            cur_xy = np.asarray(cur_obj.T_world_obj, float)[:2, 3]
+            rem_w = target_xy - cur_xy                        # remaining displacement, world xy
+            rem = base_R[:2, :2].T @ rem_w                    # into base frame (dx, dy the skill wants)
+            if float(np.linalg.norm(rem)) <= self.PUSH_TOL and stroke > 0:
+                break
+            self.ctrl.set_budget(stroke_cap)                  # fresh per-stroke cap
+            try:
+                res = self._push_once(cur_obj, float(rem[0]), float(rem[1]))
+            except StepBudgetExceeded:
+                res = SkillResult(Status.STALL, "push: stroke hit its step cap", used_fallback=True)
+            last = res
+            if res.status not in (Status.OK, Status.STALL):
+                self.ctrl.set_budget(None)
+                return res
+            # re-measure where the object ended up (perception + proprioception only)
+            relocated = locate(self, obj.label, np.append(cur_xy, obj.T_world_obj[2, 3]), radius=0.25)
+            if relocated is None:
+                break
+            cur_obj = relocated
+        self.ctrl.set_budget(None)
+        final_xy = np.asarray(cur_obj.T_world_obj, float)[:2, 3]
+        moved_w = final_xy - start_xy
+        moved_b = base_R[:2, :2].T @ moved_w
+        rem_b = base_R[:2, :2].T @ (target_xy - final_xy)
+        rem_cm = float(np.linalg.norm(rem_b) * 100)
+        st = Status.OK if rem_cm <= self.PUSH_TOL * 100 else Status.STALL
+        msg = (f"pushed {obj.label}: moved dx={moved_b[0]:.2f} dy={moved_b[1]:.2f} m "
+               f"({rem_cm:.1f} cm short of the request)")
+        src = (last.segment_id if last else None)
+        return SkillResult(st, msg, segment_id=src, used_fallback=bool(last and last.used_fallback),
+                           info={"moved_base": moved_b.tolist(), "remaining_cm": rem_cm})
+
+    def _push_once(self, obj: ObjectEstimate, dx: float, dy: float) -> SkillResult:
+        """One push stroke toward (dx, dy) in the base frame (metres)."""
+        d = np.array([dx, dy], dtype=float)
+        dist = float(np.linalg.norm(d))
+        if not np.isfinite(dist) or dist < 0.005:
+            return SkillResult(Status.OK, "push: already within tolerance")
+        dist = min(dist, 0.4)
+        if obj.points_world is None or len(obj.points_world) < 20:
+            return SkillResult(Status.PERCEPTION_FAILED, f"push: too few points on mark {obj.mark}")
+        u = d / np.linalg.norm(d)
         self._last_reason = ""
         if self._use_index():
             cands = self._push_candidates(obj, u)

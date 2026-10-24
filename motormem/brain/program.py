@@ -2,7 +2,7 @@
 
 One call per line, literal arguments only:
 
-    pick(M)
+    pick(M)                          # or pick(M, part="handle") to grasp a named part
     place(M, "on"|"in"|"top_of"|"left_of"|"right_of"|"front_of"|"back_of")
     push(M, dx=<m>, dy=<m>)          # metres, |dx|, |dy| <= 0.3
     actuate(M, "open"|"close"|"turn_on"|"turn_off")
@@ -34,15 +34,21 @@ class ProgramError(ValueError):
     """A program outside the grammar. The message is short and model-readable."""
 
 
+PART_MAX_WORDS = 3
+
+
 @dataclass(frozen=True)
 class Call:
     """One validated skill call. `args` is normalised per skill:
 
     pick/look: (mark,)   place: (mark, relation)   push: (mark, dx, dy)
     actuate: (mark, action)   home: ()
+
+    `part` is an optional short noun phrase for `pick` (e.g. "handle"); None otherwise.
     """
     name: str
     args: tuple = ()
+    part: str | None = None
 
     @property
     def mark(self) -> int | None:
@@ -61,9 +67,20 @@ def _is_offset(v) -> bool:
     return type(v) in (int, float) and math.isfinite(v) and abs(v) <= PUSH_LIMIT
 
 
+def _is_part(v) -> bool:
+    """A part is a short noun phrase: letters and spaces only, 1..PART_MAX_WORDS words."""
+    if type(v) is not str:
+        return False
+    words = v.split()
+    return (0 < len(words) <= PART_MAX_WORDS
+            and all(w.isalpha() for w in words) and v == " ".join(words))
+
+
 def is_valid_call(call: Call) -> bool:
     """Independent grammar membership check (used by tests and as a final guard)."""
     if not isinstance(call, Call) or call.name not in SKILLS or not isinstance(call.args, tuple):
+        return False
+    if call.part is not None and (call.name != "pick" or not _is_part(call.part)):
         return False
     a = call.args
     if call.name in ("pick", "look"):
@@ -115,10 +132,24 @@ def _choice(what: str, v, options: tuple[str, ...]) -> str:
     return v
 
 
+def _part(v) -> str:
+    if type(v) is not str:
+        raise ProgramError("part must be a short quoted noun phrase, e.g. part=\"handle\"")
+    norm = " ".join(v.split())
+    if not _is_part(norm):
+        raise ProgramError(f'part must be <= {PART_MAX_WORDS} words of letters/spaces; got {v!r}')
+    return norm
+
+
 def _build(name: str, pos: list, kw: dict) -> Call:
-    if name in ("pick", "look"):
+    if name == "pick":
+        if set(kw) - {"part"} or len(pos) != 1:
+            raise ProgramError('usage: pick(M) or pick(M, part="handle")')
+        part = _part(kw["part"]) if "part" in kw else None
+        return Call("pick", (_mark(pos[0]),), part)
+    if name == "look":
         if kw or len(pos) != 1:
-            raise ProgramError(f"usage: {name}(M)")
+            raise ProgramError("usage: look(M)")
         return Call(name, (_mark(pos[0]),))
     if name == "home":
         if kw or pos:
@@ -207,6 +238,8 @@ def parse_program(text: str) -> list[Call]:
 # ---------------------------------------------------------------------------- formatting
 def format_call(call: Call) -> str:
     a = call.args
+    if call.name == "pick" and call.part is not None:
+        return f'pick({a[0]}, part="{call.part}")'
     if call.name in ("pick", "look"):
         return f"{call.name}({a[0]})"
     if call.name in ("place", "actuate"):

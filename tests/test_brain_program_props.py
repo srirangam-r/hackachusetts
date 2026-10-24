@@ -13,8 +13,11 @@ from motormem.brain.program import (
 
 marks = st.integers(1, 99)
 offsets = st.floats(-PUSH_LIMIT, PUSH_LIMIT, allow_nan=False, allow_infinity=False)
+parts = st.lists(st.sampled_from(["handle", "rim", "knob", "lid", "top", "left", "side"]),
+                 min_size=1, max_size=3).map(" ".join)
 calls = st.one_of(
     st.builds(lambda m: Call("pick", (m,)), marks),
+    st.builds(lambda m, p: Call("pick", (m,), p), marks, parts),
     st.builds(lambda m: Call("look", (m,)), marks),
     st.just(Call("home", ())),
     st.builds(lambda m, r: Call("place", (m, r)), marks, st.sampled_from(PLACE_RELATIONS)),
@@ -89,6 +92,8 @@ def test_never_evaluates(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("prog,expected", [
     ("pick(3)", [Call("pick", (3,))]),
+    ('pick(3, part="handle")', [Call("pick", (3,), "handle")]),
+    ("pick(3, part='drawer handle')", [Call("pick", (3,), "drawer handle")]),
     ('place(2, "on")', [Call("place", (2, "on"))]),
     ("place(2, 'in')", [Call("place", (2, "in"))]),
     ("push(4, dx=0.1, dy=-0.05)", [Call("push", (4, 0.1, -0.05))]),
@@ -104,6 +109,8 @@ def test_examples(prog, expected):
     "", "# only a comment", "pick(0)", "pick(100)", "pick(True)", "pick(3.0)", 'pick("3")',
     'place(2, "under")', "place(2)", "push(1, dx=0.31)", "push(1, dx=1e999)", "push(1)",
     "push(1, dz=0.1)", "push(1, 0.1, dx=0.1)", 'actuate(1, "spin")', "home(1)", "grasp(1)",
+    'pick(3, part="")', 'pick(3, part="a b c d")', 'pick(3, part="handle2")', 'pick(3, part=5)',
+    'look(3, part="handle")', 'place(3, "on", part="rim")',
     "\n".join(["home()"] * (MAX_CALLS + 1)), "pick(3) pick(4)",
 ])
 def test_rejections(prog):
