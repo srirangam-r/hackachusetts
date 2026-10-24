@@ -17,6 +17,7 @@ from motormem.skills.feasibility import Feasibility
 from motormem.types import ObjectEstimate, Segment, SegmentKind, SkillResult, Status
 
 APPROACH_LIFT = 0.08      # pre-pose height above the first contact waypoint
+DEMO_ATTEMPT_STEPS = 200   # sim steps per demo grasp attempt before trying the next one or the geometric grasp
 LIFT = 0.10               # lift after grasp / retreat after release
 CONTACT_RADIUS = 0.06     # segment poses within this distance of the gripper event = "contact part"
 NEAR_TIE = 0.02           # registration hypotheses within this fitness of the best are near-ties
@@ -448,13 +449,22 @@ class Skills:
             n_tried, failed = 0, None
             for plan in self._grasp_plans(obj, segs):
                 n_tried += 1
-                res = self._do_grasp(plan, obj)
-                if res.status == Status.OK or n_tried >= 2:
+                # cap each demo attempt so a stuck one leaves budget for the next attempt / the geometric grasp
+                self.ctrl.set_budget(DEMO_ATTEMPT_STEPS)
+                try:
+                    res = self._do_grasp(plan, obj)
+                except StepBudgetExceeded:
+                    res = SkillResult(Status.TIMEOUT, "pick: demo grasp got stuck", segment_id=plan.segment_id)
+                finally:
+                    self.ctrl.set_budget(self.step_budget)
+                if res.status == Status.OK:
                     return res
                 failed = res
                 self._ensure_open()
                 self.ctrl.track(self._lifted(self.ctrl.pose(), 0.05), -1.0)
-            if failed is not None:
+                if n_tried >= 2:
+                    break
+            if failed is not None and self.motion_source == "index":
                 return failed
             if self.motion_source == "index":
                 st = Status.IK_FAILURE if self._last_reason else Status.NO_CANDIDATE
@@ -628,8 +638,19 @@ class Skills:
         last = None
         for i, (seg_id, fallback, info, plan) in enumerate(attempts):
             if plan is not None:
-                self._execute(plan, close=False)
-                res = self._finish_place(target, relation, seg_id, fallback, info)
+                self.ctrl.set_budget(int(DEMO_ATTEMPT_STEPS * 1.5))
+                try:
+                    self._execute(plan, close=False)
+                    res = self._finish_place(target, relation, seg_id, fallback, info)
+                except StepBudgetExceeded:
+                    self.ctrl.set_budget(self.step_budget)
+                    if self.ctrl.holding():            # demo path got stuck while still holding: geometric place
+                        res = self._primitive_place(target, relation)
+                        res.used_fallback = True
+                    else:
+                        res = SkillResult(Status.TIMEOUT, "place: demo path got stuck", segment_id=seg_id)
+                finally:
+                    self.ctrl.set_budget(self.step_budget)
             else:
                 res = self._primitive_place(target, relation)
                 res.used_fallback = True
