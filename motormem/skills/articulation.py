@@ -18,6 +18,7 @@ STALL_DIST = 0.002    # m of progress within the window
 MAX_TRAVEL = 0.30     # m
 KNOB_STEP = 0.1       # rad per wrist increment
 KNOB_MAX = 1.6        # rad
+KNOB_OK = 0.9         # rad: a slip after this much rotation still counts as a completed turn
 NOISE_FLOOR = 5e-4    # m; residual floor for the BIC (sensor/compliance noise)
 LINE_RADIUS = 1.0     # circles with larger radius are treated as lines
 ACTIONS = ("open", "close", "turn_on", "turn_off")
@@ -274,6 +275,9 @@ def _turn(sk, part: ObjectEstimate, sign: float):
             yaws.append(float(np.unwrap([yaw0, g.yaw_of(ctrl.pose())])[1] - yaw0) * sign)
         total = yaws[-1]
         if ctrl.obs.proprio.gripper_opening < lo:
+            if total >= KNOB_OK:   # turned well past a typical on/off detent before slipping
+                return (Status.OK, f"turned {np.degrees(total):.0f} deg, then the knob slipped out of the grasp",
+                        {"angle": total, "stop": "slip_after_turn"})
             return Status.GRASP_FAILED, f"slipped off after {np.degrees(total):.0f} deg", {"angle": total}
         if len(yaws) > STALL_WINDOW and yaws[-1] - yaws[-1 - STALL_WINDOW] < 0.02:
             stop = "stall"
