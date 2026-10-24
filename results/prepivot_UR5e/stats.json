@@ -1,0 +1,10 @@
+{
+  "name": "prepivot_UR5e",
+  "episodes": 30,
+  "success": 16,
+  "rate": 0.5333333333333333,
+  "mean_tool_calls": 3.9,
+  "mean_brain_s": 7.868448305130005,
+  "index_motions": 41,
+  "primitive_motions": 8
+}

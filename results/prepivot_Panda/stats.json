@@ -1,0 +1,10 @@
+{
+  "name": "prepivot_Panda",
+  "episodes": 30,
+  "success": 19,
+  "rate": 0.6333333333333333,
+  "mean_tool_calls": 3.7666666666666666,
+  "mean_brain_s": 5.854341904322307,
+  "index_motions": 42,
+  "primitive_motions": 9
+}
