@@ -33,11 +33,11 @@ SCENES = {
         ("porcelain_mug", "white porcelain mug", "wooden tray", "on"),
         ("white_yellow_mug", "white and yellow mug", "wooden tray", "on"),
     ]),
-    "bin_sort": ("mimicgen_pick_place.pkl", [
-        ("Milk", "milk carton", "bin", "in"),
-        ("Bread", "bread", "bin", "in"),
-        ("Cereal", "cereal box", "bin", "in"),
-        ("Can", "soda can", "bin", "in"),
+    "bin_sort": ("mimicgen_pick_place.pkl", [              # SAM 3 labels the cereal box "loaf of bread" too
+        ("Can", "soda can", "tray", "in"),
+        ("Bread", "loaf of bread", "tray", "in"),
+        ("Cereal", "loaf of bread", "tray", "in"),
+        ("Milk", "milk", "tray", "in"),
     ]),
 }
 
@@ -83,16 +83,18 @@ def target_mark(b, target: str, home_xyz, far_from=None) -> int | None:
     return m
 
 
-def pick_mark(marks, label: str, far_from=None) -> int | None:
+def pick_mark(marks, label: str, far_from=None, avoid=None) -> int | None:
     """The mark for `label`: only marks inside the reachable workspace (SAM 3 also fires on background shelves),
     minus marks that sit on top of a mark with a different label (generic prompts like "book" also hit the
     black book). With `far_from` and several candidates (two bins), take the one farthest from that point."""
     def in_ws(m):
         x, y, z = np.asarray(m.xyz)
         return 0.15 < x < 0.95 and abs(y) < 0.6 and -0.15 < z < 0.4
-    others = [np.asarray(m.xyz) for m in marks.values() if m.label != label and in_ws(m)]
+    others = [np.asarray(m.xyz) for m in marks.values()
+              if m.label != label and set(label.split()) < set(m.label.split()) and in_ws(m)]
     cands = [m for m in marks.values() if m.label == label and in_ws(m)
-             and all(np.linalg.norm(np.asarray(m.xyz) - o) > 0.04 for o in others)]
+             and all(np.linalg.norm(np.asarray(m.xyz) - o) > 0.04 for o in others)
+             and (avoid is None or np.linalg.norm(np.asarray(m.xyz)[:2] - avoid[:2]) > 0.2)]
     if not cands:
         return None
     if far_from is not None and len(cands) > 1:
@@ -164,16 +166,20 @@ def main(argv=None) -> dict:
     print("found:", sorted(found), "missing:", [f for f in finds if f not in found])
     lines = []
     homes = {}                                          # where each (static) target was first seen
-    if a.scene != "bin_sort":                           # bin_sort: two "bin" marks; use far_from instead
-        for t in dict.fromkeys(p[2] for p in plan):
-            tm = pick_mark(b.marks, t)
-            homes[t] = None if tm is None else np.asarray(b.marks[tm].xyz)
+    for t in dict.fromkeys(p[2] for p in plan):
+        tm = pick_mark(b.marks, t)
+        if a.scene == "bin_sort":                       # two bins: the target is the one away from the items
+            items = [np.asarray(m.xyz) for m in b.marks.values() if m.label not in {p[2] for p in plan}]
+            c = np.mean(items, 0) if items else np.zeros(3)
+            tm = pick_mark(b.marks, t, far_from=c)
+        homes[t] = None if tm is None else np.asarray(b.marks[tm].xyz)
     for i, (name, label, target, rel) in enumerate(plan):
         if b.episode_over():
             break
         if i:
             b.observe(finds)
-        m = pick_mark(b.marks, label)
+        avoid = homes.get(target) if a.scene == "bin_sort" else None   # skip items already in the target bin
+        m = pick_mark(b.marks, label, avoid=avoid)
         if m is None:
             lines.append(f"{name}: not found")
             continue
@@ -201,7 +207,7 @@ def main(argv=None) -> dict:
     result = {"scene": a.scene, "layout": a.layout, "arm": a.arm, "motion": a.motion, "exclude": a.exclude_objects,
               "keep_one_demo": a.keep_one_demo, "objects": status, "n_ok": sum(status.values()), "n": len(status),
               "success": res["success"], "sim_steps": res["sim_steps"], "fallbacks": res["fallbacks"],
-              "statuses": res["skill_statuses"], "n_segments_used": len(res["segment_ids"]),
+              "statuses": res["skill_statuses"], "segment_ids": res["segment_ids"],
               "wall_s": round(time.time() - t0, 1), "lines": lines}
     if a.scene == "bin_sort":
         result["in_target_bin"] = in_target_bin(env)
@@ -213,7 +219,7 @@ def main(argv=None) -> dict:
             path = VIDEO_DIR / path
         imageio.mimwrite(str(path), frames, fps=a.fps, macro_block_size=1)
         result["video"] = str(path)
-    print(json.dumps({k: v for k, v in result.items() if k not in ("lines", "statuses")}))
+    print(json.dumps({k: v for k, v in result.items() if k not in ("lines", "statuses", "segment_ids")}))
     if a.log:
         with open(a.log, "a") as f:
             f.write(json.dumps(result) + "\n")
