@@ -110,6 +110,11 @@ def relation_holds(held_est: ObjectEstimate, target_est: ObjectEstimate, relatio
         if gap > ON_GAP:
             return False, f"resting {gap * 100:.1f} cm above the target top"
         if gap < -0.05:
+            # Resting inside an open container (tray, basket) counts as "on" it: the object is within the
+            # footprint and its bottom is at or above the container's floor rather than its rim.
+            floor = float(np.asarray(target_est.points_world, float)[:, 2].min())
+            if rel == "on" and _bottom_z(held_est) >= floor - 0.02:
+                return True, "inside the target's footprint, resting on its floor"
             return False, f"below the target top by {-gap * 100:.1f} cm"
         return True, f"on target (xy inside, bottom {gap * 100:+.1f} cm vs top)"
     if rel in ("in", "inside"):
