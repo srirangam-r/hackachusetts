@@ -267,3 +267,92 @@ def test_match_name():
     assert match_name("cabinet", names) == ["wooden_cabinet_1"]
     assert match_name("cream cheese box", names) == ["cream_cheese_1"]
     assert match_name("wine bottle", names) == []
+
+
+# ---------------------------------------------------------------- prompt variants / retry
+from motormem.perception.core import prompt_variants
+
+
+def test_prompt_variants_generic_and_drops_original():
+    v = prompt_variants("cream cheese")
+    assert "cream cheese" not in v
+    assert "cheese" in v                       # last noun only
+    assert any("box" in p for p in v)          # generic category word
+    v2 = prompt_variants("black bowl")
+    assert "bowl" in v2 and "black bowl" not in v2   # colour dropped
+    v3 = prompt_variants("wine rack")
+    assert "rack" in v3
+
+
+class VariantSegmenter:
+    """Returns a candidate only for specific prompts, to exercise the retry path."""
+    name = "variant"
+
+    def __init__(self, mask, answer_for):
+        self.mask = mask
+        self.answer_for = answer_for           # prompt -> (label is the prompt)
+        self.threshold = 0.4
+        self.calls = []
+
+    def segment(self, rgb, prompts):
+        self.calls.append(list(prompts))
+        return [cand(self.mask, p, 0.6) for p in prompts if p in self.answer_for]
+
+
+def test_retry_relabels_to_requested_noun():
+    obs, masks = make_obs(BOXES[:1])
+    # The literal noun finds nothing; only the variant "cheese" resolves.
+    seg = VariantSegmenter(masks[0], answer_for={"cheese"})
+    P = Perception(seg)
+    ests = P.scan(obs, ["cream cheese"])
+    assert len(ests) == 1
+    assert ests[0].label == "cream cheese"     # relabelled back to what the brain asked
+    assert ["cream cheese"] in seg.calls       # tried the literal prompt first
+    assert any("cheese" in c for c in seg.calls)   # then a variant
+
+
+def test_no_retry_when_found_directly():
+    obs, masks = make_obs(BOXES[:1])
+    seg = VariantSegmenter(masks[0], answer_for={"black bowl"})
+    P = Perception(seg)
+    ests = P.scan(obs, ["black bowl"])
+    assert len(ests) == 1 and ests[0].label == "black bowl"
+    assert all(c == ["black bowl"] for c in seg.calls)   # no variant pass needed
+
+
+def test_parts_keeps_only_candidates_inside_and_relabels():
+    # a flat wide "stove" with a small knob inside it
+    obs, masks = make_obs([(0.0, 0.0, 0.20, 0.20, 0.03)])
+    stove_mask = masks[0]
+    from scipy import ndimage
+    knob = np.zeros_like(stove_mask)
+    ys, xs = np.nonzero(stove_mask)
+    cy, cx = int(ys.mean()), int(xs.mean())
+    knob[cy - 3:cy + 3, cx - 3:cx + 3] = True              # small, well inside the stove
+    outside = np.zeros_like(stove_mask); outside[2:6, 2:6] = True
+
+    class PartSeg:
+        name = "part"
+        threshold = 0.4
+
+        def segment(self, rgb, prompts):
+            out = []
+            for p in prompts:
+                if p == "stove":
+                    out.append(cand(stove_mask, "stove", 0.9))
+                elif p in ("knob", "dial", "burner knob"):
+                    out.append(cand(knob, p, 0.7))
+                    out.append(cand(outside, p, 0.5))      # not inside -> dropped by parts
+            return out
+
+    P = Perception(PartSeg(), localize_knobs=True)
+    ests = P.scan(obs, ["stove"])
+    assert len(ests) == 1
+    e = ests[0]
+    assert e.label == "stove"                              # label preserved for the resolver
+    # frame moved onto the knob: near stove centre, far fewer points than the whole stove
+    assert e.points_world.shape[0] < stove_mask.sum()
+
+    # with localize_knobs off (the default), the stove estimate is left whole (safe for place-on)
+    whole = Perception(PartSeg()).scan(obs, ["stove"])[0]
+    assert whole.points_world.shape[0] > e.points_world.shape[0]
