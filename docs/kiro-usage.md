@@ -66,10 +66,24 @@ These test files use Hypothesis (`grep -l hypothesis tests/`):
 | `test_memory_segmenting_props.py` | detected gripper events match the generated command transitions; each event is covered by exactly one segment window |
 | `test_perception.py` | marks are unique and centroids accurate for random synthetic boxes; mask dedupe keeps the higher-scoring mask |
 | `test_skills_articulation_props.py` | line and circle fits recover the generating joint model from noisy samples |
+| `test_memory_index_props.py` (strict matching) | `canonical()` never returns an excluded object, and strict queries for it return nothing; this is what makes "delete a demo, lose the skill" true |
+
+**What PBT caught.** Mid-build, Hypothesis found a counterexample to the line-fit property: 17 points along 4.3 cm of travel with 0.7 mm noise gave a 3.15° axis error, against a fixed 3° bound. The fixed bound was wrong. A least-squares axis estimate's error grows like noise / (length·√n), so the bound now scales with that. It also told us something about the skill itself: the articulation estimate is unreliable over the first few cm, which is why `actuate` only refits after 3 cm of motion. Hypothesis stores the failing case and replays it on every later run, so it kept failing in every worktree until fixed. A unit test with hand-picked inputs would not have found it.
 
 ## Powers
 
-None of the registry powers fit a MuJoCo robot harness, so we didn't use any. TODO: package the robot harness (MCP server + `robot-brain` agent + protocol steering) as a Kiro power, so others can drop a frontier-model brain onto their own sim.
+None of the registry powers fit a MuJoCo robot harness (the registry is mostly cloud/SaaS), so we built one: [`powers/robot-harness/`](../powers/robot-harness/) packages the robot MCP server and a skill that teaches any Kiro agent the robot protocol. `kiro-cli powers install ./powers/robot-harness` installs it (tested, then uninstalled); the README explains pointing `mcp.json` at the project venv. With it, anyone can drop a frontier-model brain onto their own sim.
+
+## Parallel agents and token budget
+
+- **Coordinator plus sub-agents:** one Kiro CLI session (Claude Opus 5.5) acted as coordinator. It wrote the contracts, spec, steering and hooks, then dispatched `general-task-execution` sub-agents, one per stream, each in its own git worktree and branch. Waves: 5 core streams (env, perception, memory, skills, brain), then ur5e, scenes, docs, fixes, fixes2 and media. The coordinator merged branches and fixed integration bugs.
+- **Integration bugs** that only appeared when the streams met:
+  - a relative index path that broke inside isolated episode workspaces;
+  - a result-file race in the MCP server;
+  - mismatched `OraclePerception` / `describe` signatures.
+- **Literature review:** about 10 parallel reading sub-agents went through 40+ papers via alphaXiv before any code was written.
+- **Token budget:** halfway through, the user asked us to save tokens. Sub-agents and the runtime brain switched to the `auto` model, and only the coordinator stayed on Opus.
+- **Runtime brain cost:** about 2–5 MCP tool calls per episode, typically 10–40 s of brain time.
 
 ## Feedback
 
