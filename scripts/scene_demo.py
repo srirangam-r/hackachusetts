@@ -66,6 +66,23 @@ def _ok(line: str) -> bool:
     return line.split("-> ", 1)[-1].split(":", 1)[0].strip() == "OK"
 
 
+def target_mark(b, target: str, home_xyz, far_from=None) -> int | None:
+    """Targets (caddy, tray, bins) do not move: take the `target` mark nearest where it was first seen. SAM 3
+    sometimes swaps labels between similar wooden containers, so if no such mark is near, re-ask for the target
+    alone and finally accept any mark at the remembered spot."""
+    def near(marks, label):
+        c = [m for m in marks.values() if (label is None or m.label == label)
+             and np.linalg.norm(np.asarray(m.xyz)[:2] - home_xyz[:2]) < 0.08]
+        return min(c, key=lambda m: np.linalg.norm(np.asarray(m.xyz)[:2] - home_xyz[:2])).mark if c else None
+    if home_xyz is None:
+        return pick_mark(b.marks, target, far_from=far_from)
+    m = near(b.marks, target)
+    if m is None:
+        b.observe([target])
+        m = near(b.marks, target) or near(b.marks, None)
+    return m
+
+
 def pick_mark(marks, label: str, far_from=None) -> int | None:
     """The mark for `label`: only marks inside the reachable workspace (SAM 3 also fires on background shelves),
     minus marks that sit on top of a mark with a different label (generic prompts like "book" also hit the
@@ -146,9 +163,16 @@ def main(argv=None) -> dict:
     found = {m.label for m in b.marks.values()}
     print("found:", sorted(found), "missing:", [f for f in finds if f not in found])
     lines = []
-    for name, label, target, rel in plan:
+    homes = {}                                          # where each (static) target was first seen
+    if a.scene != "bin_sort":                           # bin_sort: two "bin" marks; use far_from instead
+        for t in dict.fromkeys(p[2] for p in plan):
+            tm = pick_mark(b.marks, t)
+            homes[t] = None if tm is None else np.asarray(b.marks[tm].xyz)
+    for i, (name, label, target, rel) in enumerate(plan):
         if b.episode_over():
             break
+        if i:
+            b.observe(finds)
         m = pick_mark(b.marks, label)
         if m is None:
             lines.append(f"{name}: not found")
@@ -159,9 +183,10 @@ def main(argv=None) -> dict:
         if not _ok(out[0]):
             b.run(parse_program("home()"))
             continue
-        tm = pick_mark(b.marks, target, far_from=start if a.scene == "bin_sort" else None)
+        tm = target_mark(b, target, homes.get(target), far_from=start)
         if tm is None:
-            lines.append(f"{name}: target '{target}' not found")
+            lines.append(f"{name}: target '{target}' not found; marks: " + ", ".join(
+                f"{m.label}@{(100 * np.asarray(m.xyz)).round().astype(int).tolist()}" for m in b.marks.values()))
             b.run(parse_program("home()"))
             continue
         out, _, _ = b.run(parse_program(f"place({tm}, \"{rel}\")"))
