@@ -18,7 +18,7 @@ ROT_SCALE = config.ACTION_ROT_SCALE   # radians per unit action per step
 # Grasp-state thresholds on the normalised opening, keyed by gripper qpos size.
 # (closed_below, open_above): opening < closed_below = closed on nothing; > open_above = open/empty.
 GRIPPER_THRESHOLDS: dict[int, tuple[float, float]] = {
-    2: (0.03, 0.80),    # PandaGripper (calibrated in LIBERO: empty close ~0.00, bowl rim ~0.05+)
+    2: (0.03, 0.92),    # PandaGripper (calibrated in LIBERO: empty close ~0.00, bowl rim ~0.05+; a 7 cm can ~0.80)
     6: (0.008, 0.80),   # Robotiq85LinkedGripper: empty close reads 0.000; a thin bowl rim pinched at the tips 0.012+
 }
 # Usable finger opening (metres) per gripper, keyed the same way.

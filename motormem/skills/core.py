@@ -127,6 +127,33 @@ def _typical_first(segs: list) -> list:
     return sorted(segs, key=lambda s: 0 if inside(s) else 1)
 
 
+def _recentre_round(obj: ObjectEstimate) -> ObjectEstimate:
+    """A camera sees only the near half of a round object (can, cup), so the centroid of the visible points
+    sits ~r/2 too close to the camera. For roughly round footprints, use a least-squares circle fit of the
+    points' xy instead. Pure geometry; returns obj unchanged for non-round objects or bad fits."""
+    import copy
+    P = obj.points_world
+    ext = np.asarray(obj.extent, float)
+    if P is None or len(P) < 30 or min(ext[0], ext[1]) < 0.035 or abs(ext[0] - ext[1]) > 0.02:
+        return obj
+    xy = P[:, :2]
+    A = np.c_[2 * xy, np.ones(len(xy))]
+    b = (xy ** 2).sum(1)
+    try:
+        cx, cy, c = np.linalg.lstsq(A, b, rcond=None)[0]
+    except np.linalg.LinAlgError:
+        return obj
+    r = float(np.sqrt(max(c + cx ** 2 + cy ** 2, 0.0)))
+    c0 = obj.T_world_obj[:3, 3]
+    shift = np.array([cx, cy]) - c0[:2]
+    if not (0.02 < r < 0.06) or np.linalg.norm(shift) > 0.03:
+        return obj
+    out = copy.copy(obj)
+    out.T_world_obj = obj.T_world_obj.copy()
+    out.T_world_obj[:2, 3] = [cx, cy]
+    return out
+
+
 class Skills:
     def __init__(self, env, perception=None, memory=None, motion_source: str = "hybrid",
                  step_budget: int = 500, feasibility: Feasibility | None = None, controller: Controller | None = None):
@@ -513,6 +540,7 @@ class Skills:
         return opts
 
     def _primitive_pick(self, obj: ObjectEstimate) -> SkillResult:
+        obj = _recentre_round(obj)
         if obj.points_world is None or len(obj.points_world) < 20:
             return SkillResult(Status.PERCEPTION_FAILED, f"pick: too few points on mark {obj.mark}")
         reason = ""
