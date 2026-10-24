@@ -18,7 +18,10 @@ def test_line_recovered(c, u, length, n, sigma, seed):
     P = c + np.outer(s, u) + rng.normal(0, sigma, (n, 3))
     fit = select_model(P)
     assert fit.kind == "line"
-    assert abs(fit.axis @ u) > np.cos(np.radians(3))
+    # Direction error of a least-squares line grows with noise / length: ~sigma*sqrt(12/n)/L rad per axis.
+    # Allow 3 deg plus 4 standard errors (Hypothesis found a 4.3 cm, 0.7 mm-noise, 17-point case at 3.15 deg).
+    tol = np.radians(3) + 4 * sigma * np.sqrt(12 / n) / length
+    assert abs(fit.axis @ u) > np.cos(tol)
 
 
 @settings(max_examples=150, deadline=None)
