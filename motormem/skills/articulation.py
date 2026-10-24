@@ -236,6 +236,10 @@ def _ep_motion(sk, d0: np.ndarray, grasped: bool):
         travel += float(np.linalg.norm(q - path[-1]))
         path.append(q.copy())
         if grasped and ctrl.obs.proprio.gripper_opening < lo:
+            if travel >= 0.08:   # lost the handle after real travel: almost always the joint limit
+                return Status.OK, (f"moved {travel * 100:.1f} cm, then the handle slipped out "
+                                   "(likely end of travel)"), {"travel": travel, "stop": "slip_at_end",
+                                                               "model": fit.kind if fit else "none"}
             return Status.GRASP_FAILED, f"slipped off after {travel * 100:.1f} cm", {"travel": travel}
         if travel >= FIT_AFTER and len(path) >= 6:
             fit = select_model(np.array(path))

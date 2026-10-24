@@ -39,6 +39,7 @@ class TrackResult:
     rot_err: float
     waypoints_done: int
     obs: Observation | None = None
+    blocked: bool = False
 
 
 class Controller:
@@ -72,13 +73,15 @@ class Controller:
         self.steps += 1
         return self.obs
 
-    def action_to(self, T_target: np.ndarray, grip: float, max_action: float = 1.0) -> np.ndarray:
-        """Clipped OSC delta action that moves the current grip-site pose toward T_target."""
+    def action_to(self, T_target: np.ndarray, grip: float, max_action: float = 1.0,
+                  integrate: bool = False) -> np.ndarray:
+        """Clipped OSC delta action that moves the current grip-site pose toward T_target.
+        `integrate` enables the leaky position integrator (only while settling on a fixed target)."""
         dpos, drot = g.pose_error(self.pose(), T_target)
-        if np.linalg.norm(dpos) < 0.02:   # integrate only near the target (anti-windup)
+        if integrate and np.linalg.norm(dpos) < 0.02:   # anti-windup: integrate only near the target
             self._i_pos = np.clip(0.95 * self._i_pos + dpos, -0.03, 0.03)
         else:
-            self._i_pos *= 0.9
+            self._i_pos *= 0.5
         a_pos = self.gain * (dpos + self.ki * self._i_pos) / POS_SCALE
         a_rot = self.gain * drot / ROT_SCALE
         for a in (a_pos, a_rot):           # direction-preserving clip to [-max, max]
@@ -89,7 +92,7 @@ class Controller:
 
     # ---------------------------------------------------------- tracking
     def track(self, targets: np.ndarray, gripper: np.ndarray | float, pos_tol: float = 0.005,
-              rot_tol: float = 0.05, max_steps_per_wp: int = 15, max_action: float = 1.0) -> TrackResult:
+              rot_tol: float = 0.05, max_steps_per_wp: int = 15, max_action: float = 0.6) -> TrackResult:
         """Track absolute grip-site poses. Intermediate waypoints are passed at `pass_scale` x tolerance
         (except right before a gripper change); the final waypoint is always tracked at full tolerance
         with `final_scale` x the step allowance."""
@@ -98,27 +101,37 @@ class Controller:
         grip = np.broadcast_to(np.asarray(gripper, dtype=np.float64), (n,))
         start = self.steps
         done = 0
+        blocked = False
         for i in range(n):
             last = i == n - 1
             exact = last or (grip[i + 1] > 0) != (grip[i] > 0)
             pt, rt = (pos_tol, rot_tol) if exact else (pos_tol * self.pass_scale, rot_tol * self.pass_scale)
             limit = max_steps_per_wp * (self.final_scale if last else 1)
+            self._i_pos[:] = 0.0
+            hist = []
             for _ in range(limit):
                 dpos, drot = g.pose_error(self.pose(), targets[i])
                 if np.linalg.norm(dpos) < pt and np.linalg.norm(drot) < rt:
                     break
-                self.step(self.action_to(targets[i], grip[i], max_action))
+                hist.append(self.pose()[:3, 3].copy())
+                if len(hist) > 6 and np.linalg.norm(hist[-1] - hist[-7]) < 0.0015 and np.linalg.norm(dpos) > 2 * pt:
+                    blocked = True            # contact / limit: no progress, stop pushing on this waypoint
+                    break
+                self.step(self.action_to(targets[i], grip[i], max_action, integrate=exact))
             done = i + 1
+            if blocked and last:
+                break
         dpos, drot = g.pose_error(self.pose(), targets[-1])
         pe, re = float(np.linalg.norm(dpos)), float(np.linalg.norm(drot))
         return TrackResult(reached=pe < pos_tol * 2 and re < rot_tol * 2, steps=self.steps - start,
-                           pos_err=pe, rot_err=re, waypoints_done=done, obs=self.obs)
+                           pos_err=pe, rot_err=re, waypoints_done=done, obs=self.obs, blocked=blocked)
 
     def gripper(self, cmd: float, steps: int = 10) -> Observation:
         """Command the gripper while holding the current pose."""
         hold = self.pose().copy()
+        self._i_pos[:] = 0.0
         for _ in range(steps):
-            self.step(self.action_to(hold, cmd))
+            self.step(self.action_to(hold, cmd, integrate=True))
         return self.obs
 
     # ---------------------------------------------------------- grasp state
