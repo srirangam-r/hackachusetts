@@ -23,8 +23,29 @@ GRIPPER_THRESHOLDS: dict[int, tuple[float, float]] = {
 }
 # Usable finger opening (metres) per gripper, keyed the same way.
 GRIPPER_MAX_WIDTH: dict[int, float] = {2: 0.08, 6: 0.085}
-# Closing axis of the fingers in the grip-site frame, keyed the same way.
+# Closing axis of the fingers in the grip-site frame, keyed the same way (verified: both close along site x).
 GRIPPER_CLOSING_AXIS: dict[int, int] = {2: 0, 6: 0}
+
+# Panda-equivalent tool frame. Segments are recorded as PandaGripper grip-site poses; what must transfer is the
+# pinch geometry, i.e. the finger-pad centre. Panda pads (prismatic) sit at a constant z = -4 mm in the site
+# frame. The Robotiq85 pads swing on a four-bar arc: their centre moves from z = -14.7 mm (open) to -0.7 mm
+# (closed) and the tips sweep 14 mm forward while closing. T_site_tcp(opening) = translate(0, 0, z_pad - z_panda)
+# so the controller tracks the pad centre where the Panda's would be, and keeps it fixed while the jaw closes.
+PANDA_PAD_Z = -0.004
+# (opening samples, pad-centre z in the grip-site frame), measured by forward kinematics of the linked model.
+GRIPPER_PAD_Z: dict[int, tuple[tuple[float, ...], tuple[float, ...]]] = {
+    6: ((0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0),
+        (-0.0007, -0.0006, -0.0010, -0.0019, -0.0034, -0.0055, -0.0081, -0.0111, -0.0147)),
+}
+
+
+def tcp_offset(key: int, opening: float) -> np.ndarray:
+    """T_site_tcp: the Panda-equivalent tool frame in the gripper's grip-site frame (identity for the Panda)."""
+    T = np.eye(4)
+    tab = GRIPPER_PAD_Z.get(key)
+    if tab is not None:
+        T[2, 3] = float(np.interp(np.clip(opening, 0.0, 1.0), tab[0], tab[1])) - PANDA_PAD_Z
+    return T
 
 
 class StepBudgetExceeded(Exception):
@@ -58,8 +79,19 @@ class Controller:
     def set_budget(self, n: int | None) -> None:
         self._budget_end = None if n is None else self.steps + int(n)
 
+    def tcp(self, obs: Observation | None = None) -> np.ndarray:
+        """T_site_tcp for the current gripper opening (see tcp_offset)."""
+        obs = obs or self.obs
+        return tcp_offset(len(obs.proprio.gripper_qpos), obs.proprio.gripper_opening)
+
     def pose(self) -> np.ndarray:
-        return self.obs.proprio.T_world_eef
+        """Panda-equivalent tool pose (= grip site for the Panda). All skill targets are in this frame."""
+        return self.obs.proprio.T_world_eef @ self.tcp()
+
+    def to_site(self, T_tcp: np.ndarray, opening: float | None = None) -> np.ndarray:
+        """Grip-site pose that puts the tool frame at T_tcp (at `opening`, default: current)."""
+        op = self.obs.proprio.gripper_opening if opening is None else opening
+        return T_tcp @ np.linalg.inv(tcp_offset(len(self.obs.proprio.gripper_qpos), op))
 
     def refresh(self) -> Observation:
         self.obs = self.env.observe()
@@ -75,9 +107,9 @@ class Controller:
 
     def action_to(self, T_target: np.ndarray, grip: float, max_action: float = 1.0,
                   integrate: bool = False) -> np.ndarray:
-        """Clipped OSC delta action that moves the current grip-site pose toward T_target.
+        """Clipped OSC delta action that moves the current tool pose (see `pose`) toward T_target.
         `integrate` enables the leaky position integrator (only while settling on a fixed target)."""
-        dpos, drot = g.pose_error(self.pose(), T_target)
+        dpos, drot = g.pose_error(self.obs.proprio.T_world_eef, self.to_site(T_target))
         if integrate and np.linalg.norm(dpos) < 0.02:   # anti-windup: integrate only near the target
             self._i_pos = np.clip(0.95 * self._i_pos + dpos, -0.03, 0.03)
         else:

@@ -19,6 +19,8 @@ from motormem.types import ObjectEstimate, Observation, Proprio
 
 # ---------------------------------------------------------------- UR5e support (test-only copy)
 def _register_mounted_ur5e() -> None:
+    # The production MountedUR5e (with the linked Robotiq85) registers itself on import.
+    import motormem.env.arms  # noqa: F401
     from robosuite.models.robots.manipulators.ur5e_robot import UR5e
     from robosuite.robots import ROBOT_CLASS_MAPPING
     from robosuite.robots.single_arm import SingleArm

@@ -10,7 +10,11 @@ object/fixture joints, matched by joint name, and leaves the UR5e at its default
 """
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
+
 import numpy as np
+from robosuite.models.grippers import GRIPPER_MAPPING
+from robosuite.models.grippers.robotiq_85_gripper import Robotiq85Gripper
 from robosuite.models.robots.manipulators.ur5e_robot import UR5e
 from robosuite.robots import ROBOT_CLASS_MAPPING
 from robosuite.robots.single_arm import SingleArm
@@ -26,8 +30,68 @@ PANDA_ROBOT_NQ = 9
 PANDA_ROBOT_NV = 9
 
 
+class Robotiq85LinkedGripper(Robotiq85Gripper):
+    """robosuite 1.4's Robotiq85 with its four-bar linkage closed by joint equalities.
+
+    The stock model couples the passive knuckle/finger joints only through a soft, range-limited tendon and
+    lets the links collide with each other, so the fingers stall at a ~6 cm gap (thin rims, handles and
+    knobs can never be pinched) and the stall point drifts. Here the passive joints follow the driven joint
+    exactly as in the real parallel linkage (inner knuckle = driver, inner finger = -driver, pads stay
+    parallel), same-side link self-collisions are excluded and the tendon is disabled. Only the gripper's
+    own mechanism changes; no object or task information is involved.
+    """
+
+    # (passive joint, coefficient on its side's driver joint)
+    COUPLING = {"left": ("finger_joint", {"left_inner_knuckle_joint": 1.0, "left_inner_finger_joint": -1.0}),
+                "right": ("right_outer_knuckle_joint",
+                          {"right_inner_knuckle_joint": 1.0, "right_inner_finger_joint": -1.0})}
+
+    def __init__(self, idn=0):
+        super().__init__(idn=idn)
+        p = self.naming_prefix
+        for ten in list(self.tendon):
+            self.tendon.remove(ten)
+        for driver, passive in self.COUPLING.values():
+            for joint, coef in passive.items():
+                ET.SubElement(self.equality, "joint", joint1=p + joint, joint2=p + driver,
+                              polycoef=f"0 {coef} 0 0 0", solref="0.005 1", solimp="0.95 0.99 0.001")
+        bodies = [b.get("name") for b in self.worldbody.iter("body")]
+        for side in ("left", "right"):
+            links = [b for b in bodies if b.startswith(p + side)]
+            for i, a in enumerate(links):
+                for b in links[i + 1:]:
+                    ET.SubElement(self.contact, "exclude", body1=a, body2=b)
+        # The stock links have no damping/armature: a step in the position target (e.g. after a state reset)
+        # flings the fingers through each other. Give the joints servo-like inertia and damping.
+        for j in self.worldbody.iter("joint"):
+            j.set("armature", "0.005")
+            j.set("damping", "1.0")
+        # Grip strength and pad friction comparable to robosuite's PandaGripper (20 N limit, pad mu 2.0): the
+        # stock kp=20 holds a thin rim with ~1 N*m and mu 1.0, which slips on lift.
+        for act in self.actuator:
+            act.set("kp", "100")
+            act.set("forcelimited", "true")
+            act.set("forcerange", "-5 5")
+        for geom in self.worldbody.iter("geom"):
+            n = geom.get("name") or ""
+            if n.endswith("collision") and ("fingerpad" in n or "fingertip" in n or "inner_finger" in n):
+                geom.set("friction", "2 0.05 0.0001")
+
+    @property
+    def init_qpos(self):
+        return np.zeros(6)
+
+
+GRIPPER_MAPPING.setdefault("Robotiq85LinkedGripper", Robotiq85LinkedGripper)
+
+
 class MountedUR5e(UR5e):
-    """robosuite UR5e with LIBERO's mounted-arm base offsets (copied from ``MountedPanda``)."""
+    """robosuite UR5e with LIBERO's mounted-arm base offsets (copied from ``MountedPanda``) and the linked
+    Robotiq85 gripper."""
+
+    @property
+    def default_gripper(self):
+        return "Robotiq85LinkedGripper"
 
     @property
     def base_xpos_offset(self):
