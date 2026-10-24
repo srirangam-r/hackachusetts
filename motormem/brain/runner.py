@@ -22,6 +22,7 @@ import random
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import asdict
@@ -47,11 +48,11 @@ def parse_tasks(s: str) -> list[int]:
 
 
 def make_workspace(ws: Path) -> None:
-    """Isolated Kiro workspace: agent (absolute repo path), protocol, settings. Nothing else."""
+    """Isolated Kiro workspace: agent (absolute repo and interpreter paths), protocol, settings. Nothing else."""
     (ws / ".kiro" / "agents").mkdir(parents=True, exist_ok=True)
     (ws / ".kiro" / "steering").mkdir(parents=True, exist_ok=True)
     (ws / ".kiro" / "settings").mkdir(parents=True, exist_ok=True)
-    agent = AGENT_TEMPLATE.read_text().replace("${PWD}", str(config.REPO_ROOT))
+    agent = AGENT_TEMPLATE.read_text().replace("${PWD}", str(config.REPO_ROOT)).replace("${PYTHON}", sys.executable)
     (ws / ".kiro" / "agents" / "robot-brain.md").write_text(agent)
     shutil.copy(PROTOCOL, ws / ".kiro" / "steering" / "robot-protocol.md")
     (ws / ".kiro" / "settings" / "cli.json").write_text(json.dumps(WS_SETTINGS, indent=2))

@@ -19,10 +19,11 @@ from pathlib import Path
 
 import numpy as np
 
+from motormem import config
 from motormem.types import EpisodeSpec
 
-INDEX_DIR = Path("/home/nail/stuff/sundai/hackachusetts/data/index")
-VIDEO_DIR = Path("/home/nail/stuff/sundai/hackachusetts/runs/videos")
+INDEX_DIR = config.INDEX_DIR
+VIDEO_DIR = config.RUNS_DIR / "videos"
 
 # scene -> (index, [(object name, find label, target label, relation)])
 SCENES = {

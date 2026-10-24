@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import yaml
 
@@ -27,6 +28,7 @@ def test_workspace_is_isolated_and_restricted(tmp_path):
     front = yaml.safe_load(text.split("---")[1])
     assert front["tools"] == ["@robot"] and front["includeMcpJson"] is False
     assert front["mcpServers"]["robot"]["env"]["PYTHONPATH"] == str(config.REPO_ROOT)
+    assert front["mcpServers"]["robot"]["command"] == sys.executable          # the venv running the runner
     assert front["resources"] == ["file://.kiro/steering/robot-protocol.md"]
     assert "inclusion: manual" in (ws / ".kiro/steering/robot-protocol.md").read_text()
 

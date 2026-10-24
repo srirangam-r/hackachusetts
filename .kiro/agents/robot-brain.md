@@ -6,7 +6,7 @@ includeMcpJson: false
 includePowers: false
 mcpServers:
   robot:
-    command: /home/nail/stuff/sundai/hackachusetts/.venv/bin/python
+    command: ${PYTHON}
     args: ["-m", "motormem.brain.mcp_server"]
     env:
       PYTHONPATH: ${PWD}

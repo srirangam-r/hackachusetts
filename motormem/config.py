@@ -6,7 +6,9 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MAIN_CHECKOUT = Path("/home/nail/stuff/sundai/hackachusetts")
+# worktrees share the main checkout's data and runs; a fresh clone uses itself
+_MAIN = Path("/home/nail/stuff/sundai/hackachusetts")
+MAIN_CHECKOUT = _MAIN if _MAIN.is_dir() else REPO_ROOT
 DATA_DIR = Path(os.environ.get("MOTORMEM_DATA", MAIN_CHECKOUT / "data"))
 RAW_DIR = DATA_DIR / "raw"
 LIBERO_HDF5_DIR = RAW_DIR / "libero_hdf5"
