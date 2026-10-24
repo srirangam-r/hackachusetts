@@ -93,6 +93,31 @@ def rot_angle(Ra: np.ndarray, Rb: np.ndarray) -> float:
     return float(np.arccos(np.clip((np.trace(Ra.T @ Rb) - 1) / 2, -1, 1)))
 
 
+def _typical_first(segs: list) -> list:
+    """Order grasp segments by how typical their grasp point is among the demos of the same object.
+
+    Human demos vary (one closes a 2 cm box at its top edge, most close at its middle). Trying the demo
+    whose close pose (object frame) is nearest the per-object median first makes retrieval robust to outlier
+    demos. Generic: no task or object knowledge, only the demos themselves.
+    """
+    if len(segs) < 3:
+        return segs
+
+    def close_pos(s):
+        k = s.meta.get("key_index", len(s.T_obj_eef) - 1)
+        k = min(max(int(k), 0), len(s.T_obj_eef) - 1)
+        return s.T_obj_eef[k][:3, 3]
+
+    groups: dict[str, list] = {}
+    for s in segs:
+        groups.setdefault(s.object_name, []).append(s)
+    med = {n: np.median(np.stack([close_pos(s) for s in g_]), axis=0) for n, g_ in groups.items()}
+    rank = {id(s): i for i, s in enumerate(segs)}
+    # keep the object-name order of the query (best name match first), typical demos first within a name
+    return sorted(segs, key=lambda s: (min(rank[id(t)] for t in groups[s.object_name]),
+                                       float(np.linalg.norm(close_pos(s) - med[s.object_name]))))
+
+
 class Skills:
     def __init__(self, env, perception=None, memory=None, motion_source: str = "hybrid",
                  step_budget: int = 500, feasibility: Feasibility | None = None, controller: Controller | None = None):
@@ -325,7 +350,7 @@ class Skills:
             return SkillResult(Status.PERCEPTION_FAILED, f"pick: too few points on mark {obj.mark}")
         self._last_reason = ""
         if self._use_index():
-            segs = self._find_segments(SegmentKind.GRASP, obj)
+            segs = _typical_first(self._find_segments(SegmentKind.GRASP, obj))
             if not segs and self.motion_source == "index":
                 return SkillResult(Status.NO_CANDIDATE, f"pick: no demo of {obj.label} in motor memory")
             n_tried, failed = 0, None
