@@ -824,11 +824,13 @@ class Skills:
         s = _contact_start(path[:, :3, 3], ia)
         grip = np.asarray(seg.gripper, float)
         app = self._approach(path[s], lift=APPROACH_LIFT)
-        if max_travel is not None and ib > s + 1:
-            xy = path[s:ib + 1, :2, 3]
+        if max_travel is not None and ib > ia + 1:
+            # measure the stroke from where the object starts moving (ia), not from the contact window start
+            # (s): the gripper covers up to CONTACT_RADIUS before touching, which used to cut every stroke short
+            xy = path[ia:ib + 1, :2, 3]
             travel = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(xy, axis=0), axis=1))])
             cut = int(np.searchsorted(travel, max_travel))
-            ib = int(np.clip(s + cut, s + 1, ib))
+            ib = int(np.clip(ia + cut, ia + 1, ib))
         body = path[s + 1:ib + 1]
         tail = self._lifted(path[ib], 0.06)
         targets = np.concatenate([app, body, tail])

@@ -583,7 +583,13 @@ def instruction_for(spec: EpisodeSpec, kind: str = "fake") -> str:
         pass
     try:                                                      # LIBERO / LIBERO-Pro: read the task's BDDL file
         from motormem.env.libero import PRO_SUITES, STANDARD_SUITES, resolve_task
-        if spec.suite in STANDARD_SUITES or spec.suite in PRO_SUITES:
+        # Same wording as standard LIBERO evaluation (and the VLA baselines): the benchmark's task.language,
+        # derived from the task file name. LIBERO-Pro task perturbations keep the original file names but
+        # change the goal, so for them only the BDDL text carries the new instruction.
+        if spec.suite in STANDARD_SUITES or (spec.suite in PRO_SUITES and not spec.suite.endswith("_task")):
+            from libero.libero.benchmark import grab_language_from_filename
+            return grab_language_from_filename(resolve_task(spec.suite, spec.task_id).name + ".bddl")
+        if spec.suite in PRO_SUITES:
             from libero.libero.envs.bddl_utils import get_problem_info
             instr = get_problem_info(str(resolve_task(spec.suite, spec.task_id).bddl_file))["language_instruction"]
             return " ".join(instr) if isinstance(instr, (list, tuple)) else str(instr)

@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import shutil
 import signal
 import subprocess
@@ -79,7 +80,37 @@ def delete_sessions(ws: Path) -> int:
     return n
 
 
+INFRA_RETRIES = 2            # re-runs of an episode that never finished for a reason outside the robot
+
+
+def _infra_failure(ep_dir: Path, rec: dict) -> bool:
+    """True if the episode never finished (no success, done(), step budget or tool limit) because of
+    infrastructure: Kiro API throttling or the backend failing to start. Never looks at task outcome."""
+    if rec.get("ended_by"):
+        return False
+    err = rec.get("error") or ""
+    if err.startswith("backend failed to start") or err.startswith("no result.json"):
+        return True
+    log = (ep_dir / "transcript.log").read_text(errors="ignore") if (ep_dir / "transcript.log").exists() else ""
+    return "ClientThrottleError" in log or '"THROTTLING"' in log
+
+
 def run_kiro_episode(ep_dir: Path, model: str, backend: str, timeout: float, keep_sessions: bool) -> dict:
+    """One episode; re-run from a fresh reset (up to INFRA_RETRIES times) if infrastructure killed it."""
+    for attempt in range(INFRA_RETRIES + 1):
+        rec = _run_kiro_once(ep_dir, model, backend, timeout, keep_sessions)
+        rec["attempts"] = attempt + 1
+        if attempt == INFRA_RETRIES or not _infra_failure(ep_dir, rec):
+            return rec
+        (ep_dir / "transcript.log").replace(ep_dir / f"transcript.try{attempt}.log")
+        for stale in ("result.json", "trace.jsonl", "errors.log"):
+            (ep_dir / stale).unlink(missing_ok=True)
+        shutil.rmtree(ep_dir / "frames", ignore_errors=True)
+        time.sleep(20 + 20 * random.random())              # back off before hitting the API again
+    return rec
+
+
+def _run_kiro_once(ep_dir: Path, model: str, backend: str, timeout: float, keep_sessions: bool) -> dict:
     spec_path = ep_dir / "spec.json"
     instruction = json.loads(spec_path.read_text())["instruction"]
     ws = ep_dir / "ws"
@@ -181,7 +212,7 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("--tasks", default="0-9")
     ap.add_argument("--episodes", type=int, default=10, help="episodes per task (init_index 0..N-1)")
     ap.add_argument("--arm", default="Panda")
-    ap.add_argument("--model", default="auto")
+    ap.add_argument("--model", default="claude-opus-5.5")
     ap.add_argument("--parallel", type=int, default=4)
     ap.add_argument("--name", required=True)
     ap.add_argument("--backend", choices=["fake", "real"], default="real")

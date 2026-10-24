@@ -122,4 +122,4 @@ class EpisodeSpec:
     max_steps: int = 600
     seed: int = 0
     out_dir: str = ""
-    model: str = "claude-sonnet-5.5"
+    model: str = "claude-opus-5.5"

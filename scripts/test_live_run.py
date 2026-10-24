@@ -15,7 +15,7 @@ root = config.RUNS_DIR / "live" / "live_ui_test"
 root.mkdir(parents=True, exist_ok=True)
 live_mod.scene_preview(root)
 print("scene preview:", (root / "scene.jpg").exists())
-lv = live_mod.Live(root, "Panda", "auto", 4000, 600)
+lv = live_mod.Live(root, "Panda", "claude-opus-5.5", 4000, 600)
 err = lv.start(sys.argv[1] if len(sys.argv) > 1 else "put the soup cans on the tray")
 print("start error:", err, "| busy check:", lv.start("second"))
 while lv.running:
