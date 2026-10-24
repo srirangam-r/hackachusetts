@@ -213,6 +213,9 @@ class LiberoReplayer:
         self.jnt_qadr = {jn: int(m.jnt_qposadr[j]) for jn, j in self.jnt_ids.items()}
         self.jnt_bid = {jn: int(m.jnt_bodyid[j]) for jn, j in self.jnt_ids.items()}
 
+    def language(self, f) -> str:
+        return json.loads(f["data"].attrs["problem_info"])["language_instruction"]
+
     def close(self):
         try:
             self.env.close()
@@ -273,7 +276,7 @@ class LiberoReplayer:
         import h5py
         with h5py.File(self.hdf5_path, "r") as f:
             d = f["data"]
-            lang = json.loads(d.attrs["problem_info"])["language_instruction"]
+            lang = self.language(f)
             states = d[demo_key]["states"][()]
             actions = d[demo_key]["actions"][()]
         T = len(states)

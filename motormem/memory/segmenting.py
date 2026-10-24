@@ -309,7 +309,8 @@ def segment_demo(tr, arm: str = "Panda") -> tuple[list[Segment], list[str]]:
         if lang_named and not lang:
             issues.append(f"open@{o}: landed on {target}, language names {lang_named[0]}")
             continue
-        if not lang_named and held_p[2] < tr.bodies[best][c, 2, 3] + 0.01:
+        if not lang_named and held_p[2] < tr.bodies[best][c, 2, 3] + 0.01 and \
+                np.linalg.norm(held_p[:2] - tr.bodies[best][c, :2, 3]) < 0.10:
             issues.append(f"open@{o}: dropped near start height (near {target})")
             continue
         if d > 0.15 and target not in touching:
