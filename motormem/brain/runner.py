@@ -121,7 +121,7 @@ def _scripted_episode(ep_dir: str, backend: str) -> dict:
     ep = Path(ep_dir)
     spec, extras = load_spec(ep / "spec.json")
     t0 = time.time()
-    s = RobotSession(spec, lambda sp: make_backend(sp, backend), extras, max_tool_calls=100)
+    s = RobotSession(spec, lambda sp: make_backend(sp, backend, record=bool(extras.get("record"))), extras, max_tool_calls=100)
     try:
         log = run_scripted(s, int(spec.task_id))
     finally:
@@ -192,6 +192,7 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("--timeout", type=float, default=600.0)
     ap.add_argument("--scripted", action="store_true", help="RUNG-0 diagnostic: scripted programs, no brain")
     ap.add_argument("--runs-dir", default=str(config.RUNS_DIR))
+    ap.add_argument("--record", action="store_true", help="record 512 px video frames (brain/recording.py)")
     ap.add_argument("--keep-sessions", action="store_true", help="do not delete the kiro-cli sessions")
     a = ap.parse_args(argv)
 
@@ -212,7 +213,8 @@ def main(argv: list[str] | None = None) -> dict:
                                out_dir=str(ep_dir.resolve()), model=a.model)
             instr = instruction_for(spec, a.backend)
             (ep_dir / "spec.json").write_text(json.dumps({**asdict(spec), "instruction": instr,
-                                                           "backend": a.backend}, indent=2))
+                                                           "backend": a.backend,
+                                                           **({"record": True} if a.record else {})}, indent=2))
             eps.append((ep_dir, spec, instr))
             k += 1
 

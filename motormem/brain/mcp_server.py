@@ -276,7 +276,7 @@ def session_from_env() -> RobotSession:
         spec.out_dir = str(Path(path).resolve().parent)
     from motormem.brain.backend import make_backend
     kind = _env("MOTORMEM_BACKEND") or extras.get("backend", "fake")
-    return RobotSession(spec, lambda s: make_backend(s, kind), extras, max_tool_calls=max_calls)
+    return RobotSession(spec, lambda s: make_backend(s, kind, record=bool(extras.get("record"))), extras, max_tool_calls=max_calls)
 
 
 def main() -> None:
