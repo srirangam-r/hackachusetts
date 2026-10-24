@@ -32,6 +32,15 @@ Our rules ([.kiro/steering/fairness.md](.kiro/steering/fairness.md)) keep the nu
 > They **may** use RGB, depth, nominal camera calibration, proprioception, wrist force/torque and the standard training demos. The offline index build may read the demos' recorded sim states to label object poses, as MimicGen does. Ground-truth poses exist only in a runner-only "rung-0" diagnostic mode, which is never reported as a result.
 > **Enforcement:** the brain is a Kiro custom agent whose only tools come from the robot MCP server (no shell, files or web). Every observation passes through `strip_privileged()`, and a property test checks that no privileged key ever reaches the agent.
 
+## Live demo: cluttered grocery sorting from a free-text prompt
+
+```bash
+env -u PYTHONPATH MUJOCO_GL=egl .venv/bin/python scripts/live.py --prompt "put the ketchup bottles in the basket and the soup cans on the tray"
+```
+Opens a viewer at http://localhost:8765 (robot camera + the Kiro brain's turns and skill statuses) and saves an mp4 to `runs/videos/`. The scene (`motormem/env/grocery_sort.py`) is a LIBERO living-room table with a basket, a tray and nine groceries (two ketchup, two butter, two milk, two soup cans, orange juice). There is no scripted goal: the brain reads the prompt, plans every pick and place in one program, recovers from failures, and calls `done`.
+
+Example run (`live_test4`, Panda, model `auto`): both ketchup bottles in the basket and both soup cans on the tray in 80 s with 6 Kiro tool calls; one place miss and one grasp miss were caught by the skills' own checks and recovered by the brain. Placements came from demos; the grasps came from the geometric fallback because the scene's bottles stand upright while the demo bottles lay flat (the rest-pose check rejects those demos).
+
 ## Results
 
 All numbers are from our own runs on this laptop. Kiro is the brain (model `auto`), SAM 3 perception, no simulator state, no success signal to the agent, no practice on test tasks. Small samples (5 episodes per task); treat differences under ~10 points as noise. Per-run tables are in [`results/`](results/).
