@@ -82,6 +82,9 @@ class Dropped:
     score: float
 
 
+RETRY_OVERLAP = 0.5   # IoU above which a retry hit is the same object as an existing mark
+
+
 def mask_iou(a: np.ndarray, b: np.ndarray) -> float:
     inter = np.logical_and(a, b).sum()
     union = np.logical_or(a, b).sum()
@@ -235,7 +238,7 @@ class Perception:
                     self.dropped.append(Dropped(e.label, f"score {e.score:.2f} < {self.rel_score} x best", e.score))
             ests = [e for e in ests if e.score >= self.rel_score * best[e.label]]
             found = {e.label for e in ests}
-            ests += self._retry_missing(cam, [n for n in requested if n not in found])
+            ests += self._retry_missing(cam, [n for n in requested if n not in found], taken=ests)
             if self.localize_knobs:                      # point a flat/wide object's frame at its knob
                 ests = [self._localize_knob(obs, e, camera) for e in ests]
         ests.sort(key=lambda e: label_anchor(e.mask))   # left to right (u), then top to bottom
@@ -243,7 +246,8 @@ class Perception:
             e.mark = i
         return ests
 
-    def _retry_missing(self, cam: CameraFrame, missing: list[str]) -> list[ObjectEstimate]:
+    def _retry_missing(self, cam: CameraFrame, missing: list[str],
+                       taken: list[ObjectEstimate] = ()) -> list[ObjectEstimate]:
         """For each noun that found nothing, try generic prompt variants at a lowered threshold.
 
         Every surviving estimate is relabelled to the noun the caller asked for so the brain and the
@@ -259,6 +263,13 @@ class Perception:
             cands = self._estimates(cam, variants, threshold=self.retry_threshold)
             if not cands:
                 log.info("no detection for %r even after variants %s", noun, variants)
+                continue
+            # a retry hit on an object another noun already found is that object, not a new one: relabelling
+            # it would give one object two marks (e.g. the same bowl as "plate" and "black bowl")
+            claimed = list(taken) + out
+            cands = [e for e in cands if all(mask_iou(e.mask, t.mask) <= RETRY_OVERLAP for t in claimed)]
+            if not cands:
+                log.info("variants for %r only re-found objects already marked", noun)
                 continue
             best = max(cands, key=lambda e: e.score)
             best.label = noun                            # keep the label the brain asked for

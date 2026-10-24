@@ -795,10 +795,17 @@ class Skills:
                 else:
                     hyps_by_name[seg.object_name] = []
             d_obj = np.asarray(seg.meta["T_world_obj"], float)[:3, :3].T @ np.asarray(seg.meta["displacement"], float)
+            # a round object moves along the line from the finger contact through its centre, not along the
+            # demo's displacement (demonstrators often push off-centre, which also turns the object)
+            t0 = int(seg.meta.get("t_range", [0])[0])
+            ia = int(np.clip(int(seg.meta["motion_t"][0]) - t0, 0, len(seg.T_obj_eef) - 1))
+            through = -np.asarray(seg.T_obj_eef[ia], float)[:3, 3] * np.array([1.0, 1.0, 0.0])
             for T_wo, sym in hyps_by_name[seg.object_name]:
                 d = (T_wo[:3, :3] @ d_obj)[:2]
                 if np.linalg.norm(d) < 0.01:
                     continue
+                if sym and np.linalg.norm(through[:2]) > 0.01:
+                    d = (T_wo[:3, :3] @ through)[:2]
                 ang = float(np.arctan2(d[0] * u[1] - d[1] * u[0], d @ u))   # signed angle d -> u
                 T = T_wo
                 if sym:  # any yaw is an equally good registration: align the demo push with the request

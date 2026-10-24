@@ -21,6 +21,8 @@ KNOB_MAX = 1.6        # rad
 KNOB_OK = 0.9         # rad: a slip after this much rotation still counts as a completed turn
 HANDLE_MAX_WIDTH = 0.12  # m: wider parts are panels (drawer fronts, doors); look for their handle
 CONTACT_MAX_DIST = 0.04  # m: an index contact pose farther than this from every part point misses the part
+GRIP_SETTLE_MAX = 10     # x2 extra closing steps at most, until the gripper opening stops changing
+GRIP_SETTLE_TOL = 0.003  # opening change per 2 steps below which the fingers count as settled
 NOISE_FLOOR = 5e-4    # m; residual floor for the BIC (sensor/compliance noise)
 LINE_RADIUS = 1.0     # circles with larger radius are treated as lines
 ACTIONS = ("open", "close", "turn_on", "turn_off")
@@ -207,24 +209,14 @@ def _locate_handle(sk, part: ObjectEstimate) -> ObjectEstimate:
     return best
 
 
-def actuate(sk, part: ObjectEstimate, action: str) -> SkillResult:
-    if action not in ACTIONS:
-        return SkillResult(Status.BAD_ARGUMENT, f"actuate: action must be one of {ACTIONS}")
-    if part.points_world is None or len(part.points_world) < 20:
-        return SkillResult(Status.PERCEPTION_FAILED, f"actuate: too few points on mark {part.mark}")
+def _make_contact(sk, part: ObjectEstimate, action: str, idx, grasp: bool, seg_id, fallback):
+    """Reach the contact (index plan if given, else the primitive one) and grasp if needed.
+    Returns (approach,) when in contact, else a failure SkillResult (arm retreated, gripper open)."""
     knob = action in ("turn_on", "turn_off")
-    if not knob:
-        part = _locate_handle(sk, part)
-    seg_id, fallback = None, True
-    idx = _contact_from_index(sk, part, action)
-    grasp = action != "close"
     if idx is not None:
         plan, path = idx
-        seg_id, fallback = plan.segment_id, False
         approach = path[-1, :3, 2]
     else:
-        if sk.motion_source == "index":
-            return SkillResult(Status.NO_CANDIDATE, f"actuate: no '{action}' segment for '{part.label}'")
         T_c, approach = _primitive_contact(sk, part, action)
         path = sk._approach(T_c, lift=0.08) if knob else _approach_frontal(sk, T_c, approach)
     ok, reason = sk._feasible(path)
@@ -238,11 +230,48 @@ def actuate(sk, part: ObjectEstimate, action: str) -> SkillResult:
     sk.ctrl.track(path, -1.0 if grasp else 1.0)
     if grasp:
         sk.ctrl.gripper(1.0, 12)
+        # judge the grasp only once the fingers have stopped closing: 12 steps is about the time to close
+        # on nothing, so a slightly late close still reads as "holding" and then shows up as a slip
+        # ~1.7 cm into the pull instead of as a missed handle
+        prev = sk.ctrl.obs.proprio.gripper_opening
+        for _ in range(GRIP_SETTLE_MAX):
+            cur = sk.ctrl.gripper(1.0, 2).proprio.gripper_opening
+            if abs(prev - cur) < GRIP_SETTLE_TOL:
+                break
+            prev = cur
         if not sk.ctrl.holding():
             sk._ensure_open()
             _retreat(sk, -approach)
             return SkillResult(Status.GRASP_FAILED, f"actuate: could not grasp {part.label}",
                                segment_id=seg_id, used_fallback=fallback)
+    return (approach,)
+
+
+def actuate(sk, part: ObjectEstimate, action: str) -> SkillResult:
+    if action not in ACTIONS:
+        return SkillResult(Status.BAD_ARGUMENT, f"actuate: action must be one of {ACTIONS}")
+    if part.points_world is None or len(part.points_world) < 20:
+        return SkillResult(Status.PERCEPTION_FAILED, f"actuate: too few points on mark {part.mark}")
+    knob = action in ("turn_on", "turn_off")
+    if not knob:
+        part = _locate_handle(sk, part)
+    grasp = action != "close"
+    idx = _contact_from_index(sk, part, action)
+    if idx is None and sk.motion_source == "index":
+        return SkillResult(Status.NO_CANDIDATE, f"actuate: no '{action}' segment for '{part.label}'")
+    # hybrid: if the demo contact does not end up holding the part, try the geometric contact once
+    sources = ["index"] if idx is not None else []
+    if sk.motion_source != "index":
+        sources.append("primitive")
+    res = None
+    for src in sources:
+        seg_id, fallback = (idx[0].segment_id, False) if src == "index" else (None, True)
+        res = _make_contact(sk, part, action, idx if src == "index" else None, grasp, seg_id, fallback)
+        if isinstance(res, tuple):
+            break
+    if not isinstance(res, tuple):
+        return res
+    approach = res[0]
     if knob:
         out = _turn(sk, part, +1.0 if action == "turn_on" else -1.0)
     else:
@@ -308,10 +337,14 @@ def _ep_motion(sk, d0: np.ndarray, grasped: bool):
 
 
 def _turn(sk, part: ObjectEstimate, sign: float):
-    """Rotate the grasped knob about the part's vertical axis in KNOB_STEP increments."""
+    """Rotate the grasped knob about the vertical axis through the grasp in KNOB_STEP increments.
+
+    The demos turn the wrist in place (about 1 rad of yaw with 1-2 cm of hand travel). The part
+    centroid is not a safe axis: a knob mask that includes some of the panel puts it centimetres off
+    the knob, and orbiting the hand about it pulls the fingers off after a few degrees."""
     ctrl = sk.ctrl
     T0 = ctrl.pose().copy()
-    axis_p = part.T_world_obj[:3, 3]
+    axis_p = T0[:3, 3].copy()
     yaw0 = g.yaw_of(T0)
     yaws, stop, total = [0.0], "max_angle", 0.0
     lo = ctrl.thresholds(ctrl.obs)[0]

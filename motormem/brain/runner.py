@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -101,6 +102,51 @@ def delete_sessions(ws: Path) -> int:
                            timeout=60)
             n += 1
     return n
+
+
+# Kiro service failures (throttling, MCP transport loss) end the session without the brain finishing the
+# task. They say nothing about the robot, so such a trial is invalid and is re-run from a fresh reset.
+INFRA_ERROR = re.compile(r"^Error: Internal error \(code -32603\)|throttled by the service|Transport to MCP server",
+                         re.M)
+
+
+def _infra_error(ep_dir: Path, rec: dict) -> str | None:
+    """Why the trial is invalid (the robot stack or the Kiro service failed, not the task), else None."""
+    err = str(rec.get("error") or "")
+    if err.startswith(("no result.json", "backend failed to start")):
+        return err[:120]
+    if rec.get("exit_code") not in (0, None) and not rec.get("skill_statuses"):
+        return f"kiro-cli exited with code {rec.get('exit_code')} before any skill ran"
+    try:
+        m = INFRA_ERROR.search((ep_dir / "transcript.log").read_text(errors="replace"))
+    except OSError:
+        return None
+    return m.group(0) if m else None
+
+
+def run_episode_with_retries(ep_dir: Path, model: str, backend: str, timeout: float, keep_sessions: bool,
+                             retries: int, resume: bool) -> dict:
+    """run_kiro_episode, re-run (fresh reset) when the Kiro service failed and the episode did not end
+    in success; the runner record goes to `runner.json` as soon as the episode is final."""
+    rpath = ep_dir / "runner.json"
+    if resume and rpath.exists():
+        rec = json.loads(rpath.read_text())
+        if rec.get("success") or not rec.get("infra_error"):
+            return rec
+    rec: dict = {}
+    for attempt in range(retries + 1):
+        for stale in ("result.json", "trace.jsonl"):
+            (ep_dir / stale).unlink(missing_ok=True)
+        shutil.rmtree(ep_dir / "frames", ignore_errors=True)
+        rec = run_kiro_episode(ep_dir, model, backend, timeout, keep_sessions)
+        err = None if rec.get("success") else _infra_error(ep_dir, rec)
+        rec.update({"infra_error": err, "attempts": attempt + 1})
+        if err is None or attempt == retries:
+            break
+        shutil.copy(ep_dir / "transcript.log", ep_dir / f"transcript.attempt{attempt + 1}.log")
+        time.sleep(30 * (attempt + 1))                     # back off before retrying a throttled service
+    rpath.write_text(json.dumps(rec, indent=2, default=str))
+    return rec
 
 
 def run_kiro_episode(ep_dir: Path, model: str, backend: str, timeout: float, keep_sessions: bool) -> dict:
@@ -191,7 +237,9 @@ def summarize(name: str, records: list[dict], scripted: bool, args: dict) -> tup
     overall = {"n": n, "successes": succ, "success_rate": succ / n if n else 0.0,
                "mean_wall_s": mean([r.get("wall_s", 0.0) for r in records]),
                "mean_tool_calls": mean([r.get("tool_calls", 0) for r in records]),
-               "timeouts": sum(int(bool(r.get("timed_out"))) for r in records)}
+               "timeouts": sum(int(bool(r.get("timed_out"))) for r in records),
+               "infra_errors_final": sum(int(bool(r.get("infra_error"))) for r in records),
+               "infra_retries": sum(max(int(r.get("attempts", 1)) - 1, 0) for r in records)}
     table.append(f"| all | | {succ}/{n} ({100 * overall['success_rate']:.0f}%) | {overall['mean_wall_s']:.1f} | "
                  f"{overall['mean_tool_calls']:.1f} |")
     summary = {"name": name, "scripted": scripted, "args": args, "overall": overall, "per_task": rows,
@@ -218,6 +266,9 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("--runs-dir", default=str(config.RUNS_DIR))
     ap.add_argument("--record", action="store_true", help="record 512 px video frames (brain/recording.py)")
     ap.add_argument("--keep-sessions", action="store_true", help="do not delete the kiro-cli sessions")
+    ap.add_argument("--infra-retries", type=int, default=2,
+                    help="re-run an episode (fresh reset) when the Kiro service failed (throttling, MCP transport)")
+    ap.add_argument("--resume", action="store_true", help="keep finished episodes (runner.json) of a previous run")
     a = ap.parse_args(argv)
 
     from motormem.brain.backend import instruction_for
@@ -230,8 +281,9 @@ def main(argv: list[str] | None = None) -> dict:
         for e in range(a.episodes):
             ep_dir = run_dir / f"ep_{k:03d}"
             ep_dir.mkdir(exist_ok=True)
-            for stale in ("result.json", "trace.jsonl"):
-                (ep_dir / stale).unlink(missing_ok=True)
+            if not a.resume:
+                for stale in ("result.json", "trace.jsonl", "runner.json"):
+                    (ep_dir / stale).unlink(missing_ok=True)
             spec = EpisodeSpec(suite=a.suite, task_id=task, init_index=e, arm=a.arm, motion_source=a.motion_source,
                                perception=a.perception, index_path=(str(Path(a.index_path).resolve()) if a.index_path else ""), max_steps=a.max_steps, seed=e,
                                out_dir=str(ep_dir.resolve()), model=a.model)
@@ -248,8 +300,8 @@ def main(argv: list[str] | None = None) -> dict:
             results = [f.result() for f in futs]
     else:
         with ThreadPoolExecutor(max_workers=a.parallel) as pool:
-            futs = [pool.submit(run_kiro_episode, d, a.model, a.backend, a.timeout, a.keep_sessions)
-                    for d, _, _ in eps]
+            futs = [pool.submit(run_episode_with_retries, d, a.model, a.backend, a.timeout, a.keep_sessions,
+                                a.infra_retries, a.resume) for d, _, _ in eps]
             results = [f.result() for f in futs]
 
     records = []
