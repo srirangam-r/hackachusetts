@@ -131,8 +131,32 @@ class Skills:
         self._placed_centroid: np.ndarray | None = None
 
     # ================================================================ public skills
-    def pick(self, obj: ObjectEstimate) -> SkillResult:
+    def pick(self, obj: ObjectEstimate, part: str | None = None) -> SkillResult:
+        """pick(M) uses demos (else geometry); pick(M, part=...) grasps the named part, found inside M's mask
+        by perception, with the geometric grasp (demos describe whole objects, not parts)."""
+        if part:
+            p = self._find_part(obj, part)
+            if p is None:
+                return SkillResult(Status.PERCEPTION_FAILED, f"pick: no '{part}' found on {obj.label}")
+            res = self._run("pick", self._primitive_pick, p)
+            res.used_fallback = True
+            return res
         return self._run("pick", self._pick, obj)
+
+    def _find_part(self, obj: ObjectEstimate, part: str) -> ObjectEstimate | None:
+        parts_fn = getattr(self.perception, "parts", None) if self.perception is not None else None
+        if parts_fn is None:
+            return None
+        try:
+            cands = parts_fn(self.ctrl.refresh(), obj, [f"{obj.label} {part}", part])
+        except Exception:
+            return None
+        cands = [c for c in cands if c.points_world is not None and len(c.points_world) >= 20]
+        if not cands:
+            return None
+        best = max(cands, key=lambda c: c.score)
+        best.label = f"{obj.label} {part}"
+        return best
 
     def place(self, target: ObjectEstimate, relation: str = "on") -> SkillResult:
         from motormem.skills.targets import parent_of
@@ -242,16 +266,48 @@ class Skills:
         idx = np.unique(np.linspace(0, len(targets) - 1, min(len(targets), MAX_IK_WAYPOINTS)).astype(int))
         return self.feas.check(self.env.kinematics(), self.ctrl.to_site(targets[idx], 1.0))
 
+    def _clear_height(self, p0: np.ndarray, p1: np.ndarray, margin: float = 0.06) -> float:
+        """Lowest safe transit height between p0 and p1: tallest depth point in a corridor along the path.
+
+        Uses only the agentview depth of the current observation (no sim geometry). Points near the
+        gripper (the robot itself) and near the destination (the thing we are descending onto) are ignored.
+        """
+        try:
+            cam = self.ctrl.obs.cameras["agentview"]
+            P = g.deproject(cam.depth, cam.K, cam.T_world_cam, stride=2)
+        except Exception:
+            return -np.inf
+        if len(P) == 0:
+            return -np.inf
+        a, b = np.asarray(p0[:2]), np.asarray(p1[:2])
+        ab = b - a
+        L2 = float(ab @ ab)
+        t = np.clip(((P[:, :2] - a) @ ab) / L2, 0.0, 1.0) if L2 > 1e-9 else np.zeros(len(P))
+        d = np.linalg.norm(P[:, :2] - (a + t[:, None] * ab), axis=1)
+        far_start = np.linalg.norm(P[:, :2] - a, axis=1) > 0.12
+        far_end = np.linalg.norm(P[:, :2] - b, axis=1) > 0.08
+        base_z = self.ctrl.obs.T_world_base[2, 3]
+        sel = (d < 0.07) & far_start & far_end & (P[:, 2] < base_z + 0.6)
+        if not sel.any():
+            return -np.inf
+        return float(np.percentile(P[sel, 2], 98)) + margin
+
     def _approach(self, T_contact: np.ndarray, lift: float = APPROACH_LIFT) -> np.ndarray:
-        """Up (if needed) -> over to the pre-pose `lift` above T_contact -> descend to T_contact."""
+        """Up -> over to the pre-pose `lift` above T_contact -> descend. The transit height clears every
+        obstacle seen in depth along the way (no collision model of the scene needed)."""
         cur = self.ctrl.pose().copy()
         pre = T_contact.copy()
         pre[2, 3] += lift
+        z_clear = max(pre[2, 3], self._clear_height(cur[:3, 3], pre[:3, 3]))
         pts = [cur]
-        if cur[2, 3] < pre[2, 3] - 0.01:
+        if cur[2, 3] < z_clear - 0.01:
             up = cur.copy()
-            up[2, 3] = pre[2, 3]
+            up[2, 3] = z_clear
             pts.append(up)
+        if z_clear > pre[2, 3] + 0.01:
+            over = pre.copy()
+            over[2, 3] = z_clear
+            pts.append(over)
         pts.append(pre)
         a = densify(pts, 0.02, 0.1)
         b = densify([pre, T_contact], 0.01, 0.1)
@@ -650,8 +706,10 @@ class Skills:
         out.sort(key=lambda c: (round(c[0], 3), c[1].segment_id))
         return out
 
-    def _push_plan(self, seg: Segment, T_world_obj: np.ndarray) -> tuple[np.ndarray, np.ndarray, int]:
-        """Approach -> demo contact path until the object stops moving -> lift. Returns targets, gripper, n_app."""
+    def _push_plan(self, seg: Segment, T_world_obj: np.ndarray, max_travel: float | None = None
+                   ) -> tuple[np.ndarray, np.ndarray, int]:
+        """Approach -> demo contact path until the object stops moving (or the gripper has travelled
+        `max_travel` in contact: the demo's stroke length is the demonstrator's, not ours) -> lift."""
         path = g.compose(T_world_obj, seg.T_obj_eef)
         n = len(path)
         t0 = int(seg.meta.get("t_range", [0])[0])
@@ -661,6 +719,11 @@ class Skills:
         s = _contact_start(path[:, :3, 3], ia)
         grip = np.asarray(seg.gripper, float)
         app = self._approach(path[s], lift=APPROACH_LIFT)
+        if max_travel is not None and ib > s + 1:
+            xy = path[s:ib + 1, :2, 3]
+            travel = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(xy, axis=0), axis=1))])
+            cut = int(np.searchsorted(travel, max_travel))
+            ib = int(np.clip(s + cut, s + 1, ib))
         body = path[s + 1:ib + 1]
         tail = self._lifted(path[ib], 0.06)
         targets = np.concatenate([app, body, tail])
@@ -736,7 +799,7 @@ class Skills:
         if self._use_index():
             cands = self._push_candidates(obj, u)
             for ang, seg, T_wo in cands[:12]:
-                targets, gr, n_app = self._push_plan(seg, T_wo)
+                targets, gr, n_app = self._push_plan(seg, T_wo, max_travel=dist)
                 ok, reason = self._feasible(targets)
                 if not ok:
                     self._last_reason = reason

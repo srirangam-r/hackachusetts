@@ -21,6 +21,8 @@ home()                     # return the arm to its home pose
 ```
 `M` is a mark number from the latest observation. Only these calls are accepted; anything else is rejected and nothing moves. `#` comments and blank lines are allowed.
 
+Directions are always in the robot base frame, for `place` relations, `push` and the instruction's words alike: **front = +x (the side of an object farther from the robot)**, back = -x (closer to the robot), left = +y, right = -y. "Push A to the front of B" means move A to B's +x side, about half of B's size plus half of A's size beyond B's centre.
+
 Examples:
 ```
 pick(2)
@@ -47,10 +49,11 @@ Every turn, before the tool call, write:
 
 ## Rules
 1. First call: `observe` with the nouns from the instruction (objects and parts it names).
-2. Refer to objects only by mark number, taken from the latest observation.
-3. Put the whole plan into one `run` when you can; split only if a later step depends on what you will see.
-4. If a status is not `OK`, call `observe` again before retrying, and change something (another mark, relation or skill). Skills check their own result and already retry once internally, so never re-issue a call that returned `OK`.
-5. Use `part=` when the instruction implies a specific part of an object (a handle, rim, or knob), e.g. `pick(3, part="handle")`.
-6. Before `done`, check the latest observation (the one returned by `run` counts) shows the instruction satisfied.
-7. At most 6 tool calls per episode.
-8. When any tool answers `EPISODE_OVER`, stop: no more tool calls, reply with one short sentence.
+2. If a noun you need is missing from the observation, `observe` again with a simpler or more generic word for it ("box" for "tea carton", "shelf" for "spice shelf", "handle" for "cupboard"). Never give up after one observation; an instruction that sounds unusual (e.g. put X on a rack) is still to be attempted with the skills.
+3. Refer to objects only by mark number, taken from the latest observation.
+4. Put the whole plan into one `run` when you can; split only if a later step depends on what you will see.
+5. If a status is not `OK`, call `observe` again before retrying, and change something (another mark, relation or skill). Skills check their own result and already retry once internally, so never re-issue a call that returned `OK`.
+6. Use `part=` when the instruction implies a specific part of an object (a handle, rim, or knob), e.g. `pick(3, part="handle")`.
+7. Before `done`, check the latest observation (the one returned by `run` counts) shows the instruction satisfied.
+8. At most 6 tool calls per episode.
+9. When any tool answers `EPISODE_OVER`, stop: no more tool calls, reply with one short sentence.
