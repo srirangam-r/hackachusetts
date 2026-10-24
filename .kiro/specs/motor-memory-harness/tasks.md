@@ -21,12 +21,12 @@ Streams run in parallel git worktrees (`../wt-<stream>`, branch `stream/<stream>
   - [x] 2.4 `perception/oracle.py`: rung-0 oracle perception from privileged poses + memory object points
   - [x] 2.5 Accuracy check on 20 LIBERO-Goal frames vs privileged poses (centroid error report) — script only, results to `runs/perception_check/`
 
-- [ ] 3. Stream C: memory
-  - [ ] 3.1 `memory/replay.py`: read LIBERO HDF5 (states, actions), replay states, extract grip-site pose, gripper command, object poses, articulated joint qpos
-  - [ ] 3.2 `memory/segmenting.py`: gripper-event segmentation and labelling (GRASP/PLACE/PUSH/ACTUATE) + property test (Property 9) _Req 3.1_
-  - [ ] 3.3 `memory/index.py`: `MotorMemory` (query, canonical names, object points, without, save/load) + property test (Property 5) _Req 3.2-3.5_
-  - [ ] 3.4 `scripts/build_index.py`: build `data/index/libero_goal.pkl` first (all 10 Goal tasks), then spatial/object/10 and study/living LIBERO-90 scenes; MimicGen `pick_place` for bin sort
-  - [ ] 3.5 Index report: segments per kind/object, failure counts — `runs/index_report.md`
+- [x] 3. Stream C: memory
+  - [x] 3.1 `memory/replay.py`: read LIBERO HDF5 (states, actions), replay states, extract grip-site pose, gripper command, object poses, articulated joint qpos
+  - [x] 3.2 `memory/segmenting.py`: gripper-event segmentation and labelling (GRASP/PLACE/PUSH/ACTUATE) + property test (Property 9) _Req 3.1_
+  - [x] 3.3 `memory/index.py`: `MotorMemory` (query, canonical names, object points, without, save/load) + property test (Property 5) _Req 3.2-3.5_
+  - [x] 3.4 `scripts/build_index.py`: build `data/index/libero_goal.pkl` first (all 10 Goal tasks), then spatial/object/10 and study/living LIBERO-90 scenes; MimicGen `pick_place` for bin sort
+  - [x] 3.5 Index report: segments per kind/object, failure counts — `runs/index_report.md`
 
 - [ ] 4. Stream D: skills
   - [ ] 4.1 `skills/control.py`: `Controller.track` (absolute targets via clipped OSC deltas), gripper, holding _Req 4.3, 4.6_
