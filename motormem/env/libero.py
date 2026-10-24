@@ -157,6 +157,9 @@ def make_env(spec: EpisodeSpec, **kwargs) -> RobotEnv:
     """Build the episode's environment (not yet reset)."""
     if spec.suite in STANDARD_SUITES or spec.suite in PRO_SUITES:
         return make_libero_env(spec.suite, spec.task_id, spec.init_index, arm=spec.arm, seed=spec.seed, **kwargs)
+    if spec.suite == "grocery_sort":
+        from motormem.env.grocery_sort import make_grocery_env
+        return make_grocery_env(init_index=spec.init_index, arm=spec.arm, seed=spec.seed, **kwargs)
     if spec.suite == "bin_sort":
         from motormem.env.bin_sort import make_bin_sort_env
         return make_bin_sort_env(arm=spec.arm, init_index=spec.init_index, seed=spec.seed, **kwargs)

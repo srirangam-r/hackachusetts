@@ -43,7 +43,11 @@ class Recorder:
 
     def grab(self, step: int) -> None:
         f = f"rec/{len(self.frames):06d}.jpg"
-        Image.fromarray(np.asarray(self.env.render("agentview", self.size))).save(self.out / f, quality=88)
+        img = Image.fromarray(np.asarray(self.env.render("agentview", self.size)))
+        img.save(self.out / f, quality=88)
+        tmp = self.out / "latest.tmp.jpg"        # for the live viewer (scripts/live.py)
+        img.save(tmp, quality=80)
+        tmp.replace(self.out / "latest.jpg")
         self.frames.append({"file": f, "step": step, "call": self.current})
 
     def begin(self, call_text: str, run_idx: int) -> None:
