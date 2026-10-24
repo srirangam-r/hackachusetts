@@ -418,7 +418,9 @@ class RealBackend:
             memory = memory.without(objects=ex.get("objects", ()), demo_ids=ex.get("demo_ids", ()))
         self.memory = memory
         if spec.perception == "oracle":                       # rung-0 diagnostic only
-            self.perception = P.OraclePerception(self.env, memory)
+            names = {seg.object_name for seg in memory.segments}
+            self.perception = P.OraclePerception(self.env.privileged_object_poses,
+                                                 {n: memory.object_points(n) for n in names})
         else:
             self.perception = P.Perception(P.make_segmenter(spec.perception))
         self.skills = Skills(self.env, self.perception, memory, motion_source=spec.motion_source)
@@ -455,7 +457,7 @@ class RealBackend:
         imgs = [self.P.render_overlay(self.obs, ests, camera="agentview"),
                 self.P.render_overlay(self.obs, ests, camera="wrist")]
         describe = getattr(self.P, "describe", None)
-        text = describe(self.obs, ests) if describe else describe_marks(self.marks, self._gripper_text(), missing)
+        text = describe(ests, self.obs) if describe else describe_marks(self.marks, self._gripper_text(), missing)
         return imgs, text
 
     def _exec(self, call: Call):
