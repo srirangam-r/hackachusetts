@@ -22,12 +22,11 @@ def test_workspace_is_isolated_and_restricted(tmp_path):
     ws = tmp_path / "ws"
     runner.make_workspace(ws)
     files = sorted(str(p.relative_to(ws)) for p in ws.rglob("*") if p.is_file())
-    assert files == [".kiro/agents/robot-brain.md", ".kiro/settings/cli.json", ".kiro/steering/robot-protocol.md"]
-    text = (ws / ".kiro/agents/robot-brain.md").read_text()
-    front = yaml.safe_load(text.split("---")[1])
-    assert front["tools"] == ["@robot"] and front["includeMcpJson"] is False
-    assert front["mcpServers"]["robot"]["env"]["PYTHONPATH"] == str(config.REPO_ROOT)
-    assert front["resources"] == ["file://.kiro/steering/robot-protocol.md"]
+    assert files == [".kiro/agents/robot-brain.json", ".kiro/settings/cli.json", ".kiro/steering/robot-protocol.md"]
+    agent = json.loads((ws / ".kiro/agents/robot-brain.json").read_text())
+    assert agent["tools"] == ["@robot"] and agent["includeMcpJson"] is False
+    assert agent["mcpServers"]["robot"]["env"]["PYTHONPATH"] == str(config.REPO_ROOT)
+    assert agent["resources"] == ["file://.kiro/steering/robot-protocol.md"]
     assert "inclusion: manual" in (ws / ".kiro/steering/robot-protocol.md").read_text()
 
 

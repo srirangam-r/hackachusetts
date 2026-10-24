@@ -45,13 +45,37 @@ def parse_tasks(s: str) -> list[int]:
     return out
 
 
+def _agent_md_to_json(md: str) -> dict:
+    """Convert the repo's markdown agent (YAML frontmatter + body) into the JSON agent
+    format that kiro-cli >= 2.30 discovers (``.kiro/agents/<name>.json``)."""
+    import yaml
+    parts = md.split("---", 2)
+    if len(parts) >= 3:
+        meta = yaml.safe_load(parts[1]) or {}
+        body = parts[2].strip()
+    else:
+        meta, body = {}, md.strip()
+    tools = meta.get("tools", ["@robot"])
+    return {
+        "name": meta.get("name", "robot-brain"),
+        "description": meta.get("description", ""),
+        "prompt": body,
+        "mcpServers": meta.get("mcpServers", {}),
+        "tools": tools,
+        "allowedTools": tools,
+        "resources": meta.get("resources", []),
+        "includeMcpJson": bool(meta.get("includeMcpJson", False)),
+    }
+
+
 def make_workspace(ws: Path) -> None:
     """Isolated Kiro workspace: agent (absolute repo path), protocol, settings. Nothing else."""
     (ws / ".kiro" / "agents").mkdir(parents=True, exist_ok=True)
     (ws / ".kiro" / "steering").mkdir(parents=True, exist_ok=True)
     (ws / ".kiro" / "settings").mkdir(parents=True, exist_ok=True)
-    agent = AGENT_TEMPLATE.read_text().replace("${PWD}", str(config.REPO_ROOT))
-    (ws / ".kiro" / "agents" / "robot-brain.md").write_text(agent)
+    agent_md = AGENT_TEMPLATE.read_text().replace("${PWD}", str(config.REPO_ROOT))
+    agent_json = _agent_md_to_json(agent_md)
+    (ws / ".kiro" / "agents" / "robot-brain.json").write_text(json.dumps(agent_json, indent=2))
     shutil.copy(PROTOCOL, ws / ".kiro" / "steering" / "robot-protocol.md")
     (ws / ".kiro" / "settings" / "cli.json").write_text(json.dumps(WS_SETTINGS, indent=2))
 
