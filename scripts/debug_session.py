@@ -15,6 +15,7 @@ from motormem.types import EpisodeSpec
 
 out = Path(tempfile.mkdtemp(prefix="dbg_session_"))
 spec = EpisodeSpec(suite="libero_goal", task_id=int(sys.argv[1]), init_index=int(os.environ.get("INIT", "0")), perception="sam3", motion_source=os.environ.get("MS", "hybrid"),
+                   arm=os.environ.get("ARM", "Panda"),
                    index_path=str(config.INDEX_DIR / "libero_goal.pkl"), out_dir=str(out))
 (out / "spec.json").write_text(json.dumps(asdict(spec)))
 os.environ["ROBOT_EPISODE"] = str(out / "spec.json")

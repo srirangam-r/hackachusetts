@@ -20,15 +20,17 @@ class Step:
     label: str                      # object the skill acts on
     arg: str | None = None          # relation / action / reference label (push_to)
     offset: tuple = (0.0, 0.0)      # push_to: target = reference xy + offset (m, base frame)
+    by_height: str | None = None    # among marks matching `label`, pick "top" | "middle" | "bottom" by z
 
 
 # task_id -> (find nouns, steps)
 LIBERO_GOAL: dict[int, tuple[list[str], list[Step]]] = {
-    0: (["middle drawer"], [Step("actuate", "middle drawer", "open")]),
+    0: (["drawer handle"], [Step("actuate", "drawer handle", "open", by_height="middle")]),
     1: (["black bowl", "stove"], [Step("pick", "black bowl"), Step("place", "stove", "on")]),
     2: (["wine bottle", "cabinet"], [Step("pick", "wine bottle"), Step("place", "cabinet", "top_of")]),
-    3: (["top drawer", "black bowl"], [Step("actuate", "top drawer", "open"), Step("pick", "black bowl"),
-                                       Step("place", "top drawer", "in")]),
+    3: (["drawer handle", "black bowl"], [Step("actuate", "drawer handle", "open", by_height="top"),
+                                          Step("pick", "black bowl"),
+                                          Step("place", "drawer handle", "in", by_height="top")]),
     4: (["black bowl", "cabinet"], [Step("pick", "black bowl"), Step("place", "cabinet", "top_of")]),
     5: (["plate", "stove"], [Step("push_to", "plate", "stove", (-0.17, 0.0))]),   # front = toward robot
     6: (["cream cheese", "black bowl"], [Step("pick", "cream cheese"), Step("place", "black bowl", "in")]),
@@ -38,20 +40,31 @@ LIBERO_GOAL: dict[int, tuple[list[str], list[Step]]] = {
 }
 
 
-def resolve(label: str, marks: dict[int, MarkInfo]) -> int | None:
-    """Mark whose label equals `label`, else the first (left-most) whose label matches it."""
-    for m in sorted(marks):
-        if marks[m].label == label:
-            return m
-    for m in sorted(marks):
-        if _matches(marks[m].label, label):
-            return m
-    return None
+def resolve(label: str, marks: dict[int, MarkInfo], by_height: str | None = None) -> int | None:
+    """Mark whose label equals `label`, else the first (left-most) whose label matches it.
+
+    `by_height` ("top" | "middle" | "bottom") selects among all marks matching `label` by their z
+    (robot base frame, up): used to pick one drawer handle out of the stack the segmenter returns,
+    without any task- or sim-specific knowledge.
+    """
+    cands = [m for m in sorted(marks) if marks[m].label == label]
+    if not cands:
+        cands = [m for m in sorted(marks) if _matches(marks[m].label, label)]
+    if not cands:
+        return None
+    if by_height is None or len(cands) == 1:
+        return cands[0]
+    ordered = sorted(cands, key=lambda m: float(marks[m].xyz[2]))  # low -> high z
+    if by_height == "bottom":
+        return ordered[0]
+    if by_height == "top":
+        return ordered[-1]
+    return ordered[len(ordered) // 2]  # "middle"
 
 
 def to_call(step: Step, marks: dict[int, MarkInfo]) -> Call | str:
     """A `Call`, or a short reason string when a label cannot be resolved."""
-    m = resolve(step.label, marks)
+    m = resolve(step.label, marks, step.by_height)
     if m is None:
         return f"no mark for {step.label!r}"
     if step.skill == "pick":

@@ -260,15 +260,21 @@ def _ep_motion(sk, d0: np.ndarray, grasped: bool):
     lo = ctrl.thresholds(ctrl.obs)[0]
     for k in range(int(MAX_TRAVEL / 0.004)):
         p = ctrl.pose()[:3, 3]
-        R = T0[:3, :3]
-        if fit is not None and fit.kind == "circle":   # rotate the wrist with the arc
+        tp = p + LEAD * d
+        if fit is not None and fit.kind == "circle":   # revolute: rotate the wrist with the arc
             a0 = path[0] - fit.point
             a1 = p - fit.point
             a0 -= fit.axis * (a0 @ fit.axis)
             a1 -= fit.axis * (a1 @ fit.axis)
             ang = np.arctan2(np.cross(a0, a1) @ fit.axis, a0 @ a1)
             R = g.Rotation.from_rotvec(fit.axis * ang).as_matrix() @ T0[:3, :3]
-        target = g.make_pose(p + LEAD * d, R)
+        else:
+            # Prismatic (line) or not-yet-fit: translate only and let the wrist float at its current
+            # orientation. Locking the orientation to the grasp pose drives the UR5e wrist into a joint
+            # limit a few cm into the pull (it stalls at ~9 cm of drawer travel); floating lets the arm
+            # reconfigure and run the drawer to its stop. The grip holds the handle regardless.
+            R = ctrl.pose()[:3, :3]
+        target = g.make_pose(tp, R)
         ctrl.step(ctrl.action_to(target, grip))
         q = ctrl.pose()[:3, 3]
         travel += float(np.linalg.norm(q - path[-1]))
