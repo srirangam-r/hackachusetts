@@ -255,16 +255,22 @@ def build_server(session: RobotSession):
     return server
 
 
+def _env(name: str, default: str | None = None) -> str | None:
+    """Environment lookup that treats an unexpanded '${VAR}' placeholder as unset."""
+    v = os.environ.get(name)
+    return default if not v or v.startswith("${") else v
+
+
 def session_from_env() -> RobotSession:
-    path = os.environ.get("ROBOT_EPISODE")
-    max_calls = int(os.environ.get("ROBOT_MAX_TOOL_CALLS", "10"))
+    path = _env("ROBOT_EPISODE")
+    max_calls = int(_env("ROBOT_MAX_TOOL_CALLS", "10"))
     if not path:
         return RobotSession(None, None, max_tool_calls=max_calls)
     spec, extras = load_spec(path)
     if not spec.out_dir:
         spec.out_dir = str(Path(path).resolve().parent)
     from motormem.brain.backend import make_backend
-    kind = os.environ.get("MOTORMEM_BACKEND", extras.get("backend", "fake"))
+    kind = _env("MOTORMEM_BACKEND") or extras.get("backend", "fake")
     return RobotSession(spec, lambda s: make_backend(s, kind), extras, max_tool_calls=max_calls)
 
 
