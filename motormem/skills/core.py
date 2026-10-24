@@ -646,6 +646,13 @@ class Skills:
         if not ok:
             return SkillResult(Status.IK_FAILURE, f"push: stroke unreachable ({reason})", used_fallback=True)
         self.ctrl.gripper(1.0, 8)
+        # turn to the push orientation in place first: a large yaw change during the descent stalls the
+        # translation (the tracker sees no progress) and the stroke then runs above the object
+        cur = self.ctrl.pose().copy()
+        turned = cur.copy()
+        turned[:3, :3] = R
+        self.ctrl.track(densify([cur, turned], 0.02, 0.1), 1.0)
+        app = self._approach(start, lift=LIFT)
         self.ctrl.track(app, 1.0)
         self.ctrl.track(stroke, 1.0, max_steps_per_wp=6)
         self.ctrl.track(self._lifted(self.ctrl.pose()), 1.0)
