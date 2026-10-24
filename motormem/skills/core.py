@@ -124,6 +124,9 @@ class Skills:
 
     def actuate(self, part: ObjectEstimate, action: str) -> SkillResult:
         from motormem.skills.articulation import actuate as _actuate
+        if action in ("turn_on", "turn_off"):
+            from motormem.skills.targets import knob_of
+            part = knob_of(self, part)
         return self._run("actuate", _actuate, self, part, action)
 
     def home(self) -> SkillResult:
