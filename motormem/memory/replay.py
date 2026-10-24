@@ -331,6 +331,8 @@ class LiberoReplayer:
         landing = {}
         for t in np.nonzero(~closed[1:] & closed[:-1])[0] + 1:
             landing[int(t)] = self._landing(states[int(min(t + 10, T - 1))])
+        if T and closed[-1]:   # still holding at the end: simulate the release
+            landing[T - 1] = self._landing(states[T - 1], steps=20)
         return DemoTrace(
             demo_id=f"{self.suite}/{self.task_name}/{demo_key}", source=self.suite, task_language=lang,
             T_world_eef=Teef, gripper=actions[:, -1].astype(np.float64), gripper_qpos=np.array(gq),

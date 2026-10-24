@@ -113,13 +113,17 @@ def _tokens(s: str) -> set[str]:
 
 
 def clause_for(language: str, held_category: str | None) -> str:
-    """The clause of a compound instruction that mentions the held object."""
-    parts = re.split(r"\band then\b|\bthen\b|,|\band (?=put|place|pick|open|close|turn|push|stack)", language)
-    if held_category is None or len(parts) == 1:
+    """The placing clause of a compound instruction ("pick up X ... and place it on Y" -> "place it on Y")."""
+    parts = [p for p in re.split(r"\band then\b|\bthen\b|,|\band (?=put|place|pick|open|close|turn|push|stack)",
+                                 language) if p.strip()]
+    if len(parts) == 1:
         return language
+    placing = [p for p in parts if re.search(r"\b(put|place|stack)\b", p)] or parts
+    if held_category is None:
+        return placing[-1]
     want = _tokens(held_category.replace("_", " "))
-    best = max(parts, key=lambda p: len(_tokens(p) & want))
-    return best if _tokens(best) & want else language
+    best = max(placing, key=lambda p: len(_tokens(p) & want))
+    return best if _tokens(best) & want else placing[-1]
 
 
 # ---------------------------------------------------------------- labelling helpers
@@ -273,18 +277,19 @@ def segment_demo(tr, arm: str = "Panda") -> tuple[list[Segment], list[str]]:
         T_obj = tr.bodies[best][c]
         mk(SegmentKind.GRASP, best, w.start, w.end, T_obj, meta={"lift": best_rise, "close_t": c}, frame_t=c,
            key_t=c)
-        if nxt is None:
-            issues.append(f"close@{c}: never released (no PLACE)")
-            continue
+        if nxt is None:   # demo ends while holding (success fired before release): release at the end
+            o = T - 1
+            ps, pe = min(c + GRASP_TAIL, o), T
+        else:
+            ps, pe = nxt.start, nxt.end
         # PLACE: target under/containing the held object once it has settled after release
-        ps, pe = nxt.start, nxt.end
         land = (tr.meta.get("landing") or {}).get(o)
         held_p = (land["poses"][best] if land else tr.bodies[best][min(o + PLACE_TAIL, T - 1)])[:3, 3]
         touching = land["contacts"].get(best, set()) if land else set()
         held_cat = cat.get(best, best)
         clause = clause_for(tr.task_language, held_cat)
         rel = parse_relation(clause)
-        lang_tokens = _tokens(clause) - _tokens(held_cat.replace("_", " "))
+        lang_tokens = _tokens(tr.task_language) - _tokens(held_cat.replace("_", " "))
         cands = []
         for inst, Tb in tr.bodies.items():
             if inst == best:
