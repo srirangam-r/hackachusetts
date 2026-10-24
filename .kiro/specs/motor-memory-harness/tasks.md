@@ -14,12 +14,12 @@ Streams run in parallel git worktrees (`../wt-<stream>`, branch `stream/<stream>
   - [ ] 1.5 LIBERO-Pro goal swap/task episodes from `data/raw/libero_pro` _Req 1.5_
   - [ ] 1.6 `env/bin_sort.py` (robosuite PickPlace, Panda/UR5e) and `env/desk_sort.py` (custom study scene, 6-10 objects, 5 init layouts) _Req 1.5_
 
-- [ ] 2. Stream B: perception
-  - [ ] 2.1 `perception/segmenters.py`: SAM 3 (transformers `Sam3Model`, text prompts) and Grounding DINO + SAM 2.1 fallback; `make_segmenter("auto")` _Req 2.2_
-  - [ ] 2.2 `perception/core.py`: `Perception.scan/refine`, mask dedupe, depth filtering, marks _Req 2.1, 2.4_
-  - [ ] 2.3 `perception/overlay.py`: numbered marks, metric grid, gripper pinch point _Req 2.3_
-  - [ ] 2.4 `perception/oracle.py`: rung-0 oracle perception from privileged poses + memory object points
-  - [ ] 2.5 Accuracy check on 20 LIBERO-Goal frames vs privileged poses (centroid error report) — script only, results to `runs/perception_check/`
+- [x] 2. Stream B: perception
+  - [x] 2.1 `perception/segmenters.py`: SAM 3 (transformers `Sam3Model`, text prompts) and Grounding DINO + SAM 2.1 fallback; `make_segmenter("auto")` _Req 2.2_
+  - [x] 2.2 `perception/core.py`: `Perception.scan/refine`, mask dedupe, depth filtering, marks _Req 2.1, 2.4_
+  - [x] 2.3 `perception/overlay.py`: numbered marks, metric grid, gripper pinch point _Req 2.3_
+  - [x] 2.4 `perception/oracle.py`: rung-0 oracle perception from privileged poses + memory object points
+  - [x] 2.5 Accuracy check on 20 LIBERO-Goal frames vs privileged poses (centroid error report) — script only, results to `runs/perception_check/`
 
 - [ ] 3. Stream C: memory
   - [ ] 3.1 `memory/replay.py`: read LIBERO HDF5 (states, actions), replay states, extract grip-site pose, gripper command, object poses, articulated joint qpos
