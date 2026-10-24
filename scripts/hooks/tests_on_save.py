@@ -34,12 +34,13 @@ def main() -> int:
     m = re.search(r"motormem/(?:(\w+)/)?(\w+)\.py$", path or "")
     if not m:
         return 0
-    root = payload.get("cwd") or os.getcwd()
+    root = path.split("/motormem/")[0] if os.path.isabs(path) and "/motormem/" in path else (payload.get("cwd") or os.getcwd())
     names = {n for n in m.groups() if n and n != "__init__"}
     tests = sorted({t for n in names for t in glob.glob(os.path.join(root, "tests", f"test_{n}*.py"))})
     if not tests:
         return 0
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env["PYTHONPATH"] = root  # import the worktree's own motormem
     env["MUJOCO_GL"] = "egl"
     r = subprocess.run([PY, "-m", "pytest", "-q", "-x", "-m", "not sim", *tests], cwd=root, env=env,
                        capture_output=True, text=True, timeout=110)

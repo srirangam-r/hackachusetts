@@ -6,7 +6,7 @@ inclusion: always
 ## Environment
 - Python 3.12 venv at the main checkout: `/home/nail/stuff/sundai/hackachusetts/.venv` (worktrees reuse it by absolute path; do not create new venvs).
 - Always run with `env -u PYTHONPATH MUJOCO_GL=egl` (ROS pollutes PYTHONPATH; rendering is headless EGL).
-- Tests: `env -u PYTHONPATH MUJOCO_GL=egl /home/nail/stuff/sundai/hackachusetts/.venv/bin/python -m pytest -q`.
+- Tests: `env -u PYTHONPATH MUJOCO_GL=egl /home/nail/stuff/sundai/hackachusetts/.venv/bin/python -m pytest -q`. In a worktree use `env PYTHONPATH=$PWD MUJOCO_GL=egl ...` from the worktree root so its own `motormem` is imported.
 - Property-based tests use Hypothesis. Keep each test file fast (<30 s); mark sim-heavy tests `@pytest.mark.sim`.
 - Data lives only in the main checkout: `MOTORMEM_DATA` (default `/home/nail/stuff/sundai/hackachusetts/data`). Never write into `data/raw/`.
   - `data/raw/libero_hdf5/{libero_goal,libero_spatial,libero_object,libero_10,libero_90}/*.hdf5` (original LIBERO demos with sim states)
