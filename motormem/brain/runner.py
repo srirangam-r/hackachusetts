@@ -31,6 +31,8 @@ from motormem.types import EpisodeSpec
 
 AGENT_TEMPLATE = config.REPO_ROOT / ".kiro" / "agents" / "robot-brain.md"
 PROTOCOL = config.REPO_ROOT / ".kiro" / "steering" / "robot-protocol.md"
+# toolSearch.enabled=false is not honoured per-workspace by kiro-cli 2.34.0 headless runs (robot tools
+# stay deferred: one extra tool_load turn). It only takes effect as a global setting; kept for later versions.
 WS_SETTINGS = {"toolSearch.enabled": False, "chat.disableInheritingDefaultResources": True}
 KIRO = os.environ.get("KIRO_CLI", "kiro-cli")
 

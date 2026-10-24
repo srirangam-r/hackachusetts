@@ -35,12 +35,12 @@ Streams run in parallel git worktrees (`../wt-<stream>`, branch `stream/<stream>
   - [ ] 4.4 `skills/articulation.py`: `actuate` with equilibrium-point lead, online line/circle fit, stall/slip detection + property test (Property 8) _Req 4.4_
   - [ ] 4.5 Rung-0 smoke: with oracle perception, scripted pick/place/actuate on 3 LIBERO-Goal tasks, Panda and UR5e
 
-- [ ] 5. Stream E: brain
-  - [ ] 5.1 `brain/program.py` grammar + property test (Property 6) _Req 5.2_
-  - [ ] 5.2 `brain/mcp_server.py` with a fake backend for tests; real backend wiring behind an interface _Req 5.1, 5.3, 5.4_
-  - [ ] 5.3 Property test: tool outputs never leak privileged/success fields (Property 7) _Req 5.4_
-  - [ ] 5.4 `.kiro/agents/robot-brain.md` + `.kiro/steering/robot-protocol.md`; end-to-end headless run against the fake backend _Req 5.1_
-  - [ ] 5.5 `brain/runner.py`: parallel episodes, results, summary; `brain/scripted.py` rung-0 programs for LIBERO-Goal _Req 6.1-6.4_
+- [x] 5. Stream E: brain
+  - [x] 5.1 `brain/program.py` grammar + property test (Property 6) _Req 5.2_
+  - [x] 5.2 `brain/mcp_server.py` with a fake backend for tests; real backend wiring behind an interface _Req 5.1, 5.3, 5.4_
+  - [x] 5.3 Property test: tool outputs never leak privileged/success fields (Property 7) _Req 5.4_
+  - [x] 5.4 `.kiro/agents/robot-brain.md` + `.kiro/steering/robot-protocol.md`; end-to-end headless run against the fake backend _Req 5.1_
+  - [x] 5.5 `brain/runner.py`: parallel episodes, results, summary; `brain/scripted.py` rung-0 programs for LIBERO-Goal _Req 6.1-6.4_
 
 - [ ] 6. Integration (coordinator)
   - [ ] 6.1 Merge streams; wire real backend into MCP server
