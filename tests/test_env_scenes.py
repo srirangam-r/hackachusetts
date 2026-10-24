@@ -55,7 +55,7 @@ def test_desk_sort_layout_objects_on_table(layout):
     env = make_env(EpisodeSpec(suite="desk_sort", task_id=0, init_index=layout, arm=arm))
     try:
         env.reset()
-        assert env.instruction.startswith("put both books in the desk caddy")
+        assert env.instruction == "sort the desk: books in the caddy, mugs on the tray"
         poses = env.privileged_object_poses()
         names = [f"{n}_1" for n in desk_sort.OBJECTS]
         assert set(names) <= set(poses) and 6 <= len(names) <= 10
@@ -70,3 +70,38 @@ def test_desk_sort_layout_objects_on_table(layout):
         assert env._runner_success() is False
     finally:
         env.close()
+
+
+def test_desk_sort_object_status_starts_unsorted():
+    from motormem.env import desk_sort, make_env
+    env = make_env(EpisodeSpec(suite="desk_sort", task_id=0, init_index=1, arm="Panda"))
+    try:
+        env.reset()
+        st = desk_sort.object_status(env)
+        assert set(st) == set(desk_sort.BOOKS + desk_sort.MUGS) and not any(st.values())
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("dummy", [0])
+def test_scene_demo_mark_selection(dummy):
+    """Scripted-program helpers: workspace filter, label de-duplication, status parsing (no sim)."""
+    import importlib.util
+    from pathlib import Path
+    from types import SimpleNamespace as NS
+    p = Path(__file__).resolve().parents[1] / "scripts" / "scene_demo.py"
+    spec = importlib.util.spec_from_file_location("scene_demo", p)
+    sd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sd)
+    mk = lambda i, label, xyz: NS(mark=i, label=label, xyz=np.array(xyz))  # noqa: E731
+    marks = {1: mk(1, "black book", [-1.1, -1.0, -0.26]),      # background false positive
+             2: mk(2, "black book", [0.34, -0.11, 0.07]),
+             3: mk(3, "book", [0.343, -0.105, 0.07]),          # same object, generic label
+             4: mk(4, "book", [0.35, 0.10, 0.07]),
+             5: mk(5, "bin", [0.6, -0.25, -0.1]), 6: mk(6, "bin", [0.6, 0.25, -0.1])}
+    assert sd.pick_mark(marks, "black book") == 2
+    assert sd.pick_mark(marks, "book") == 4
+    assert sd.pick_mark(marks, "mug") is None
+    assert sd.pick_mark(marks, "bin", far_from=np.array([0.6, -0.2, 0])) == 6
+    assert sd._ok("1. pick(3) -> OK: picked book (mark 3)")
+    assert not sd._ok("1. pick(3) -> NO_CANDIDATE: pick: no OK segment")
