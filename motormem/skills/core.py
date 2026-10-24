@@ -533,11 +533,17 @@ class Skills:
         opts = []
         if ext[1] <= width - 0.015:
             # across the short horizontal axis at ~40% of the height (at most 3.5 cm below the top), with
-            # the fingertips clear of the table
+            # the fingertips clear of the table; in clutter, also try closing directions rotated off the minor
+            # axis (as long as the object still fits) and keep the ones whose open fingers have room
             h = max(float(ext[2]), float(z_top - z_bot), 0.005)
             z = max(z_top - min(0.6 * h, 0.035), z_top - h + 0.008)
-            for s in (1, -1):
-                opts.append(("center", g.make_pose([c[0], c[1], z], topdown_rotation(s * minor, col))))
+            for ang in (0.0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, np.pi / 2):
+                u = np.cos(ang) * minor + np.sin(ang) * ax
+                span = abs(np.cos(ang)) * ext[1] + abs(np.sin(ang)) * ext[0]
+                if ang and span > width - 0.01:
+                    continue
+                for s in (1, -1):
+                    opts.append(("center", g.make_pose([c[0], c[1], z], topdown_rotation(s * u, col))))
         else:  # too wide: grasp the rim/edge, fingers closing radially
             z = max(z_top - 0.02 - GRIPPER_RIM_EXTRA_DEPTH.get(self.ctrl.gripper_key(), 0.0), z_bot + 0.012)
             for u, half in ((ax, ext[0] / 2), (-ax, ext[0] / 2), (minor, ext[1] / 2), (-minor, ext[1] / 2)):
@@ -547,7 +553,42 @@ class Skills:
             # prefer edges nearest the robot (more reachable)
             opts.sort(key=lambda o: np.linalg.norm(o[1][:2, 3] - base_xy))
         opts.sort(key=lambda o: (o[0] != "center", rot_angle(R_cur, o[1][:3, :3]) + 2.0 * np.linalg.norm(o[1][:2, 3] - base_xy)))
-        return opts
+        hits = self._finger_hits(obj, [T for _, T in opts], width)
+        order = sorted(range(len(opts)), key=lambda i: (hits[i] > 3, i))   # clear options first, keep order
+        return [opts[i] for i in order]
+
+    def _finger_hits(self, obj: ObjectEstimate, grasps: list, width: float) -> list[int]:
+        """For each top-down grasp, how many depth points (not on the object) lie where the open fingers
+        descend. Uses only the agentview depth of the current observation."""
+        from scipy.spatial import cKDTree
+        try:
+            cam = self.ctrl.obs.cameras["agentview"]
+            P = g.deproject(cam.depth, cam.K, cam.T_world_cam, stride=2)
+        except Exception:
+            return [0] * len(grasps)
+        c = obj.T_world_obj[:3, 3]
+        P = P[np.linalg.norm(P[:, :2] - c[:2], axis=1) < 0.16]
+        if len(P) == 0 or obj.points_world is None or len(obj.points_world) == 0:
+            return [0] * len(grasps)
+        d, _ = cKDTree(obj.points_world).query(P)
+        P = P[d > 0.012]
+        out = []
+        _, col = self._gripper_geometry()
+        for T in grasps:
+            u = T[:3, col] / (np.linalg.norm(T[:3, col]) + 1e-9)
+            n = 0
+            for s in (1, -1):
+                f = T[:3, 3] + s * u * (width / 2 + 0.008)
+                near = np.linalg.norm(P[:, :2] - f[:2], axis=1) < 0.013
+                n += int((near & (P[:, 2] > T[2, 3] - 0.01)).sum())
+            # the hand body above the fingers is ~20 cm wide along the closing axis and ~6 cm thick
+            v = np.cross([0.0, 0.0, 1.0], u)
+            rel = P[:, :2] - T[:2, 3]
+            along, across = rel @ u[:2], rel @ v[:2]
+            palm = (np.abs(along) < 0.10) & (np.abs(across) < 0.035) & (P[:, 2] > T[2, 3] + 0.045)
+            n += int(palm.sum())
+            out.append(n)
+        return out
 
     def _primitive_pick(self, obj: ObjectEstimate) -> SkillResult:
         obj = _recentre_round(obj)

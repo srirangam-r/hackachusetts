@@ -36,12 +36,14 @@ pre{white-space:pre-wrap;font-size:13px;line-height:1.35;background:#1b1b1b;padd
 height:520px;overflow:auto}.ok{color:#7d7}.bad{color:#f88}.hint{color:#888;font-size:13px}</style></head><body>
 <img id="cam" alt="robot camera"><div id="side">
 <h1>Motor Memory - Kiro brain + SAM 3 + demo-retrieved motion</h1>
-<form id="f"><input id="p" autocomplete="off" placeholder="e.g. put the ketchup bottles in the basket and the soup cans on the tray">
+<form id="f"><input id="p" autocomplete="off" placeholder="e.g. put the mugs on the tray and the books in the caddy, then open the top drawer">
 <button id="go">Run</button></form>
-<div class="hint">Objects on the table: ketchup x2, soup can x2, milk x2, butter x2, orange juice, a basket and a wooden tray.</div>
+<div class="hint">A cluttered desk: books, mugs, snack boxes and packaging, cans, bottles and cartons, piled and overlapping. Containers: a desk caddy, a wooden tray, a basket, and a cabinet with three drawers.</div>
 <div id="status">idle</div><pre id="log"></pre></div><script>
 const cam=document.getElementById('cam'),log=document.getElementById('log'),st=document.getElementById('status'),
-go=document.getElementById('go'),inp=document.getElementById('p');let ep=null;
+go=document.getElementById('go'),inp=document.getElementById('p');let ep=null,loading=false;
+cam.src='scene.jpg';
+function frame(u){if(loading)return;loading=true;const im=new Image();im.onload=()=>{cam.src=im.src;loading=false};im.onerror=()=>{loading=false};im.src=u}
 document.getElementById('f').onsubmit=async e=>{e.preventDefault();const p=inp.value.trim();if(!p)return;
 go.disabled=true;const r=await fetch('/run',{method:'POST',body:JSON.stringify({prompt:p})});
 const j=await r.json();if(!r.ok){st.textContent=j.error;go.disabled=false}};
@@ -52,15 +54,16 @@ function fmt(t){return t.split('\\n').filter(keep).map(l=>l.replace(/&/g,'&amp;'
 async function tick(){try{const s=await (await fetch('/state?'+Date.now())).json();
 go.disabled=s.running;ep=s.ep;
 st.textContent=s.running?('running: "'+s.prompt+'"  ('+s.elapsed+' s)'):(s.ep?('done: "'+s.prompt+'"  '+(s.summary||'')):'idle - type a prompt and press Run');
-if(ep){cam.src=ep+'/latest.jpg?'+Date.now();const t=await (await fetch(ep+'/transcript.log?'+Date.now())).text();
+if(ep){frame(ep+'/latest.jpg?'+Date.now());const t=await (await fetch(ep+'/transcript.log?'+Date.now())).text();
 const h=fmt(t);if(h!==log.dataset.h){log.innerHTML=h;log.dataset.h=h;log.scrollTop=log.scrollHeight}}
-else{cam.src='scene.jpg'}}catch(e){}}
+else{frame('scene.jpg?'+Date.now())}}catch(e){}}
 setInterval(tick,300);</script></body></html>"""
 
 
 class Live:
-    def __init__(self, root: Path, arm: str, model: str, max_steps: int, timeout: float):
+    def __init__(self, root: Path, arm: str, model: str, max_steps: int, timeout: float, scene: str = "clutter_desk"):
         self.root, self.arm, self.model, self.max_steps, self.timeout = root, arm, model, max_steps, timeout
+        self.scene = scene
         self.lock = threading.Lock()
         self.running = False
         self.ep: str | None = None
@@ -82,8 +85,8 @@ class Live:
             self.n += 1
         ep = self.root / name
         ep.mkdir(parents=True, exist_ok=True)
-        spec = EpisodeSpec(suite="grocery_sort", task_id=0, init_index=0, arm=self.arm, motion_source="hybrid",
-                           perception="sam3", index_path=str(config.INDEX_DIR / "libero90_study_living.pkl"),
+        spec = EpisodeSpec(suite=self.scene, task_id=0, init_index=0, arm=self.arm, motion_source="hybrid",
+                           perception="sam3", index_path=str(config.INDEX_DIR / "live_all.pkl"),
                            max_steps=self.max_steps, out_dir=str(ep.resolve()), model=self.model)
         (ep / "spec.json").write_text(json.dumps({**asdict(spec), "instruction": prompt, "backend": "real",
                                                   "record": True}, indent=2))
@@ -154,13 +157,13 @@ def make_handler(live: Live):
     return H
 
 
-def scene_preview(root: Path) -> None:
+def scene_preview(root: Path, scene: str = "clutter_desk") -> None:
     """Render the starting scene once so the page shows it before the first run."""
     try:
         from PIL import Image
 
         from motormem.env import make_env
-        env = make_env(EpisodeSpec(suite="grocery_sort", task_id=0, init_index=0))
+        env = make_env(EpisodeSpec(suite=scene, task_id=0, init_index=0))
         env.reset()
         Image.fromarray(env.render("agentview", 512)).save(root / "scene.jpg", quality=88)
         env.close()
@@ -171,6 +174,7 @@ def scene_preview(root: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--prompt", default="", help="optional: start a first run with this prompt")
+    ap.add_argument("--scene", default="clutter_desk", choices=["clutter_desk", "grocery_sort"])
     ap.add_argument("--arm", default="Panda")
     ap.add_argument("--model", default="auto")
     ap.add_argument("--name", default=time.strftime("live_%H%M%S"))
@@ -182,8 +186,8 @@ def main() -> None:
 
     root = config.RUNS_DIR / "live" / a.name
     root.mkdir(parents=True, exist_ok=True)
-    scene_preview(root)
-    live = Live(root, a.arm, a.model, a.max_steps, a.timeout)
+    scene_preview(root, a.scene)
+    live = Live(root, a.arm, a.model, a.max_steps, a.timeout, a.scene)
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(live))
     url = f"http://localhost:{a.port}/"
     print(f"Motor Memory live demo: {url}  (Ctrl+C to stop)\nruns are saved under {root}", flush=True)
