@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "motor-memory"
+version = "0.1.0"
+description = "A frontier-model robot harness whose actions come from an index of recorded demos, not from generated code or a fine-tuned VLA"
+requires-python = ">=3.12"
+# Versions pinned to the environment the project was developed and evaluated in.
+dependencies = [
+    "hf-libero==0.1.4",          # LIBERO (brings robosuite 1.4.0, bddl, robomimic)
+    "robosuite==1.4.0",
+    "mujoco==3.8.1",
+    "torch==2.11.0",
+    "torchvision==0.26.0",
+    "transformers==5.5.4",       # SAM 3 / SAM 2.1 / Grounding DINO
+    "huggingface-hub==1.33.0",
+    "numpy==2.2.6",
+    "scipy==1.18.1",
+    "h5py==3.16.0",
+    "pillow==12.3.0",
+    "imageio==2.38.1",
+    "pyyaml==6.0.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "hypothesis==6.170.9"]
+mcp = ["mcp==2.3.0"]
+
+[tool.setuptools.packages.find]
+include = ["motormem*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

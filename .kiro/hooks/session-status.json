@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Session status",
+      "trigger": "SessionStart",
+      "description": "Injects GPU usage, worktrees, background jobs and the latest eval summary at session start.",
+      "action": {
+        "type": "command",
+        "command": "bash scripts/hooks/session_status.sh",
+        "timeout": 15
+      }
+    }
+  ]
+}

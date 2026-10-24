@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Guard destructive commands",
+      "trigger": "PreToolUse",
+      "description": "Blocks destructive shell commands (deleting data/raw, force push, reset --hard, clean -f, branch -D) while agents run with --trust-all-tools.",
+      "matcher": "execute_bash",
+      "action": {
+        "type": "command",
+        "command": "python3 scripts/hooks/guard.py",
+        "timeout": 10
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+# Large or generated artifacts (never commit)
+data/
+logs/
+runs/
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.hypothesis/
+*.mp4
+!docs/media/*.mp4
+
+# NOTE: .kiro/ must stay tracked (hackathon requirement). Do not add it here.

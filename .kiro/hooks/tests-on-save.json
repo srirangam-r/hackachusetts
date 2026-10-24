@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Tests on save",
+      "trigger": "PostFileSave",
+      "description": "Runs the fast (non-sim) tests for a motormem module whenever the agent saves it; warns with the failure tail.",
+      "matcher": "motormem/.*\\.py$",
+      "action": {
+        "type": "command",
+        "command": "python3 scripts/hooks/tests_on_save.py",
+        "timeout": 120
+      }
+    }
+  ]
+}

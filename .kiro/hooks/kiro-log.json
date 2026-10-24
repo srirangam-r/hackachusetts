@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Kiro activity log",
+      "trigger": "Stop",
+      "description": "Appends a timestamped line (branch, session, diff stat) to docs/kiro-log.md after every agent turn.",
+      "action": {
+        "type": "command",
+        "command": "bash scripts/hooks/kiro_log.sh",
+        "timeout": 10
+      }
+    }
+  ]
+}
