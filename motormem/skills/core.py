@@ -176,6 +176,35 @@ class Skills:
             segs = [s for s in segs if s.object_name == name and (held is None or s.held_name == held)]
         return segs
 
+    def _find_segments(self, kind: SegmentKind, obj: ObjectEstimate, **kw) -> list[Segment]:
+        """Segments for obj by motion source.
+
+        index: strict only (exact object; editability: deleting an object's demos removes the skill).
+        hybrid: strict; else the best-token-overlap visible name ("wooden rack" -> wine_rack); else
+        segments of the same kind (and relation, if given) ranked by extent. Excluded objects never appear.
+        """
+        segs = self._query(kind, obj, strict=True, **kw)
+        if segs or self.motion_source != "hybrid":
+            return segs
+        rel = kw.get("relation")
+        keep = (lambda ss: [s for s in ss if rel is None or s.relation == rel])
+        name = None
+        try:
+            name = self.memory.lenient_name(obj.label)
+        except Exception:
+            name = None
+        if name is not None:
+            for kk in (kw, {k: v for k, v in kw.items() if k != "held_name"}):
+                segs = keep([s for s in self.memory.query(kind, object_name=name, strict=True, **kk) or []
+                             if s.object_name == name])
+                if segs:
+                    return segs
+        try:
+            segs = self.memory.query(kind, object_name=None, extent=obj.extent, **kw)
+        except Exception:
+            segs = []
+        return keep(list(segs or []))
+
     def _register(self, src: np.ndarray, dst: np.ndarray) -> list[tuple[np.ndarray, float, float]]:
         key = (src.shape, src[:4].tobytes(), dst.shape, dst[:4].tobytes())
         if key not in self._reg_cache:
@@ -290,7 +319,7 @@ class Skills:
             return SkillResult(Status.PERCEPTION_FAILED, f"pick: too few points on mark {obj.mark}")
         self._last_reason = ""
         if self._use_index():
-            segs = self._query(SegmentKind.GRASP, obj, strict=True)
+            segs = self._find_segments(SegmentKind.GRASP, obj)
             if not segs and self.motion_source == "index":
                 return SkillResult(Status.NO_CANDIDATE, f"pick: no demo of {obj.label} in motor memory")
             n_tried, failed = 0, None
@@ -362,13 +391,18 @@ class Skills:
         P, T, ext = obj.points_world, obj.T_world_obj, obj.extent
         c = T[:3, 3]
         ax, minor = T[:3, 0], T[:3, 1]
+        if ext[1] > ext[0]:  # keep `minor` the SHORT horizontal axis
+            ax, minor = minor, ax
+            ext = np.array([ext[1], ext[0], ext[2]])
         z_top, z_bot = P[:, 2].max(), P[:, 2].min()
         R_cur = self.ctrl.pose()[:3, :3]
         base_xy = self.ctrl.obs.T_world_base[:2, 3]
         opts = []
         if ext[1] <= width - 0.015:
-            depth = float(np.clip(0.5 * ext[2], 0.01, 0.035))
-            z = max(z_top - depth, z_bot + 0.012)
+            # across the short horizontal axis at ~40% of the height (at most 3.5 cm below the top), with
+            # the fingertips clear of the table
+            h = max(float(ext[2]), float(z_top - z_bot), 0.005)
+            z = max(z_top - min(0.6 * h, 0.035), z_top - h + 0.008)
             for s in (1, -1):
                 opts.append(("center", g.make_pose([c[0], c[1], z], topdown_rotation(s * minor, col))))
         else:  # too wide: grasp the rim/edge, fingers closing radially
@@ -442,6 +476,8 @@ class Skills:
             if not segs and held_name is not None and self.motion_source == "hybrid":
                 # cross-object reuse: any held object placed on/in this same target
                 segs = self._query(SegmentKind.PLACE, target, strict=True, relation=relation)
+            if not segs and self.motion_source == "hybrid":
+                segs = self._find_segments(SegmentKind.PLACE, target, relation=relation, held_name=held_name)
             if not segs and self.motion_source == "index":
                 return SkillResult(Status.NO_CANDIDATE, f"place: no demo of {target.label} in motor memory")
             for seg in segs:
@@ -496,32 +532,113 @@ class Skills:
         return self._finish_place(target, relation, None, True, {"release_z": float(T_rel[2, 3])})
 
     # ================================================================ push
+    def _push_candidates(self, obj: ObjectEstimate, u: np.ndarray) -> list[tuple]:
+        """(angle, seg, T_world_obj) for index PUSH segments whose demo displacement, mapped onto the live
+        object, points within 90 deg of u. Symmetric objects (yaw-ambiguous registration) are yawed about
+        their own vertical axis so the demo displacement aligns with u exactly. Best-aligned first."""
+        segs = [s for s in self._find_segments(SegmentKind.PUSH, obj, k=500)
+                if s.meta.get("displacement") is not None and s.meta.get("T_world_obj") is not None
+                and s.meta.get("motion_t") is not None]
+        hyps_by_name: dict[str, list] = {}
+        out = []
+        for seg in segs:
+            if seg.object_name not in hyps_by_name:
+                src = self.memory.object_points(seg.object_name)
+                if len(src) < 20:
+                    src = np.asarray(seg.object_points, float)
+                hyps = self._register(src, obj.points_world) if len(src) >= 20 else []
+                if hyps and hyps[0][2] >= MIN_FITNESS:
+                    near = [h for h in hyps if h[2] >= hyps[0][2] - NEAR_TIE]
+                    yaws = [g.yaw_of(h[0]) for h in near]
+                    sym = len(near) > 1 and np.ptp(np.unwrap(yaws)) > np.radians(30)
+                    hyps_by_name[seg.object_name] = [(h[0], sym) for h in near]
+                else:
+                    hyps_by_name[seg.object_name] = []
+            d_obj = np.asarray(seg.meta["T_world_obj"], float)[:3, :3].T @ np.asarray(seg.meta["displacement"], float)
+            for T_wo, sym in hyps_by_name[seg.object_name]:
+                d = (T_wo[:3, :3] @ d_obj)[:2]
+                if np.linalg.norm(d) < 0.01:
+                    continue
+                ang = float(np.arctan2(d[0] * u[1] - d[1] * u[0], d @ u))   # signed angle d -> u
+                T = T_wo
+                if sym:  # any yaw is an equally good registration: align the demo push with the request
+                    T = T_wo.copy()
+                    c, s_ = np.cos(ang), np.sin(ang)
+                    T[:3, :3] = np.array([[c, -s_, 0], [s_, c, 0], [0, 0, 1.0]]) @ T_wo[:3, :3]
+                    ang = 0.0
+                if abs(ang) < np.radians(90):
+                    out.append((abs(ang), seg, T))
+        out.sort(key=lambda c: (round(c[0], 3), c[1].segment_id))
+        return out
+
+    def _push_plan(self, seg: Segment, T_world_obj: np.ndarray) -> tuple[np.ndarray, np.ndarray, int]:
+        """Approach -> demo contact path until the object stops moving -> lift. Returns targets, gripper, n_app."""
+        path = g.compose(T_world_obj, seg.T_obj_eef)
+        n = len(path)
+        t0 = int(seg.meta.get("t_range", [0])[0])
+        a, b = (int(t) - t0 for t in seg.meta["motion_t"])
+        ia = int(np.clip(a, 0, n - 1))
+        ib = int(np.clip(b + 2, ia, n - 1))
+        s = _contact_start(path[:, :3, 3], ia)
+        grip = np.asarray(seg.gripper, float)
+        app = self._approach(path[s], lift=APPROACH_LIFT)
+        body = path[s + 1:ib + 1]
+        tail = self._lifted(path[ib], 0.06)
+        targets = np.concatenate([app, body, tail])
+        gr = np.concatenate([np.full(len(app), grip[s]), grip[s + 1:ib + 1], np.full(len(tail), grip[ib])])
+        return targets, np.where(gr > 0, 1.0, -1.0), len(app)
+
     def _push(self, obj: ObjectEstimate, dx: float, dy: float) -> SkillResult:
         d = np.array([dx, dy], dtype=float)
         dist = float(np.linalg.norm(d))
         if not np.isfinite(dist) or dist < 0.005 or dist > 0.4:
             return SkillResult(Status.BAD_ARGUMENT, f"push: distance {dist:.3f} m outside 0.005..0.4")
+        if obj.points_world is None or len(obj.points_world) < 20:
+            return SkillResult(Status.PERCEPTION_FAILED, f"push: too few points on mark {obj.mark}")
         u = d / dist
+        self._last_reason = ""
         if self._use_index():
-            for seg in self._query(SegmentKind.PUSH, obj):
-                for plan in self._segment_plans(seg, obj, close=True):
-                    net = plan.targets[-1, :2, 3] - plan.targets[plan.event, :2, 3]
-                    if np.linalg.norm(net) > 0.01 and (net @ u) / np.linalg.norm(net) > np.cos(np.radians(45)):
-                        self.ctrl.track(plan.targets, plan.gripper)
-                        return SkillResult(Status.OK, f"pushed {obj.label} with demo motion", segment_id=plan.segment_id)
+            cands = self._push_candidates(obj, u)
+            for ang, seg, T_wo in cands[:12]:
+                targets, gr, n_app = self._push_plan(seg, T_wo)
+                ok, reason = self._feasible(targets)
+                if not ok:
+                    self._last_reason = reason
+                    continue
+                if gr[0] > 0:
+                    self.ctrl.gripper(1.0, 8)
+                else:
+                    self._ensure_open()
+                self.ctrl.track(targets[:n_app], float(gr[0]))
+                self.ctrl.track(targets[n_app:], gr[n_app:], max_steps_per_wp=6)
+                disp_w = np.zeros(3)
+                disp_w[:2] = (T_wo[:3, :3] @ np.asarray(seg.meta["T_world_obj"], float)[:3, :3].T
+                              @ np.asarray(seg.meta["displacement"], float))[:2]
+                db = self.ctrl.obs.T_world_base[:3, :3].T @ disp_w
+                return SkillResult(Status.OK, f"pushed {obj.label} with demo motion: demo displacement "
+                                   f"dx={db[0]:.2f} dy={db[1]:.2f} m ({np.degrees(ang):.0f} deg from request)",
+                                   segment_id=seg.segment_id,
+                                   info={"demo_displacement": db[:2].tolist(), "angle_deg": float(np.degrees(ang))})
             if self.motion_source == "index":
-                return SkillResult(Status.NO_CANDIDATE, f"push: no demo pushes {obj.label} in that direction")
+                st = Status.IK_FAILURE if (cands and self._last_reason) else Status.NO_CANDIDATE
+                return SkillResult(st, f"push: no demo pushes {obj.label} in that direction"
+                                   + (f" ({self._last_reason})" if self._last_reason else ""))
         P, T, ext = obj.points_world, obj.T_world_obj, obj.extent
         c = T[:3, 3]
         half = float(np.abs(u @ T[:2, :2]) @ ext[:2]) / 2
-        z = P[:, 2].min() + float(np.clip(0.5 * ext[2], 0.015, 0.03))
+        # contact height from the measured top surface and height: thin objects (plates) are pushed with
+        # the closed fingertips at most 1 cm above the table
+        z_top = float(P[:, 2].max())
+        h = max(float(ext[2]), z_top - float(P[:, 2].min()), 0.005)
+        table = z_top - h
+        z = table + (min(0.01, 0.5 * h + 0.005) if h < 0.03 else float(np.clip(0.5 * h, 0.015, 0.03)))
         _, col = self._gripper_geometry()
         R = topdown_rotation(np.array([-u[1], u[0], 0.0]), col)
         if rot_angle(self.ctrl.pose()[:3, :3], R) > rot_angle(self.ctrl.pose()[:3, :3], topdown_rotation(np.array([u[1], -u[0], 0.0]), col)):
             R = topdown_rotation(np.array([u[1], -u[0], 0.0]), col)
         start = g.make_pose([c[0] - u[0] * (half + 0.03), c[1] - u[1] * (half + 0.03), z], R)
         end = start.copy()
-        end[:2, 3] += u * dist
+        end[:2, 3] += u * (dist + 0.02)   # the closed fingers first cover the ~2 cm gap to the near edge
         app = self._approach(start, lift=LIFT)
         stroke = densify([start, end], 0.01, 0.1)[1:]
         targets = np.concatenate([app, stroke, self._lifted(end)])
@@ -529,10 +646,18 @@ class Skills:
         if not ok:
             return SkillResult(Status.IK_FAILURE, f"push: stroke unreachable ({reason})", used_fallback=True)
         self.ctrl.gripper(1.0, 8)
+        # turn to the push orientation in place first: a large yaw change during the descent stalls the
+        # translation (the tracker sees no progress) and the stroke then runs above the object
+        cur = self.ctrl.pose().copy()
+        turned = cur.copy()
+        turned[:3, :3] = R
+        self.ctrl.track(densify([cur, turned], 0.02, 0.1), 1.0)
+        app = self._approach(start, lift=LIFT)
         self.ctrl.track(app, 1.0)
         self.ctrl.track(stroke, 1.0, max_steps_per_wp=6)
         self.ctrl.track(self._lifted(self.ctrl.pose()), 1.0)
-        return SkillResult(Status.OK, f"pushed {obj.label} {dist * 100:.0f} cm", used_fallback=True)
+        return SkillResult(Status.OK, f"pushed {obj.label} {dist * 100:.0f} cm (contact {100 * (z - table):.1f} cm "
+                           f"above the table)", used_fallback=True)
 
     # ================================================================ home
     def _home(self) -> SkillResult:

@@ -41,6 +41,12 @@ def _plural(t: str) -> str:
     return t[:-1] if len(t) > 3 and t.endswith("s") and not t.endswith("ss") else t
 
 
+def _log_extent(e) -> np.ndarray:
+    """Yaw-invariant log extent: horizontal sizes sorted (major, minor), then height."""
+    e = np.maximum(np.asarray(e, float).reshape(-1)[:3], 0.005)
+    return np.log(np.array([max(e[0], e[1]), min(e[0], e[1]), e[2]]))
+
+
 class MotorMemory:
     def __init__(self, segments: Iterable[Segment] = (), _excluded_objects: frozenset = frozenset(),
                  _excluded_demos: frozenset = frozenset()):
@@ -138,6 +144,41 @@ class MotorMemory:
         best = self._best_name(label)
         return best if best is not None and best in self.names() else None
 
+    def lenient_name(self, label: str) -> str | None:
+        """Best-token-overlap VISIBLE name for `label` ("wooden rack" -> wine_rack), for hybrid fallback.
+
+        Unlike `canonical`, unmatched label words never disqualify a name. A shared category noun (a name's
+        last token, or a synonym) counts 2, any other shared token (attributes, generic container words) 1.
+        Excluded objects are never returned; None when no token overlaps.
+        """
+        if not label:
+            return None
+        visible = self.names()
+        raw = label.strip().lower().replace(" ", "_")
+        if raw in visible:
+            return raw
+        toks = {_plural(t) for t in _tok(label)}
+        counts: dict[str, int] = {}
+        for s in self.segments:
+            counts[s.object_name] = counts.get(s.object_name, 0) + 1
+        best, best_key = None, None
+        for n in visible:
+            parts = [_plural(t) for t in n.split("_")]
+            ntok = set(parts)
+            score = 0.0
+            for t in toks:
+                w = 1.0 if t in GENERIC else 2.0
+                if t in ntok:
+                    score += w if t == parts[-1] else 1.0
+                elif any(n == syn or set(syn.split("_")) <= ntok for syn in SYNONYMS.get(t, [])):
+                    score += 0.9 * w
+            if score <= 0:
+                continue
+            key = (round(score, 3), -len(ntok - toks), counts.get(n, 0), n)
+            if best_key is None or key > best_key:
+                best, best_key = n, key
+        return best
+
     def _canon_or_self(self, name: str | None) -> str | None:
         if name is None:
             return None
@@ -166,12 +207,12 @@ class MotorMemory:
             exts = [s.meta.get("extent") for s in cands if s.object_name == name and s.meta.get("extent") is not None]
             if exts:
                 extent = np.median(np.stack(exts), axis=0)
-        ext_q = None if extent is None else np.log(np.maximum(np.asarray(extent, float), 0.005))
+        ext_q = None if extent is None else _log_extent(extent)
 
         def key(s: Segment):
             e = s.meta.get("extent")
             if ext_q is not None and e is not None:
-                ed = float(np.linalg.norm(np.log(np.maximum(np.asarray(e, float), 0.005)) - ext_q))
+                ed = float(np.linalg.norm(_log_extent(e) - ext_q))
             else:
                 ed = 0.0
             return (0 if (name is not None and s.object_name == name) else 1,
