@@ -7,10 +7,10 @@ Streams run in parallel git worktrees (`../wt-<stream>`, branch `stream/<stream>
   - [x] 0.2 Property tests for geometry (Properties 1-3) — `tests/test_geometry_props.py`
 
 - [ ] 1. Stream A: env
-  - [ ] 1.1 `env/libero.py`: build standard LIBERO suites (goal/spatial/object/10) from the installed package's bddl/init files with depth on, 256 px; return stripped `Observation` (OpenCV extrinsics verified by projecting the EEF into the image) _Req 1.1, 1.5_
-  - [ ] 1.2 `strip_privileged` + property test (Property 4) _Req 1.2_
-  - [ ] 1.3 `env/arms.py`: `MountedUR5e` registration and init-state object transfer; smoke test that objects match Panda positions _Req 1.3_
-  - [ ] 1.4 `kinematics()`, `_runner_success()`, `privileged_object_poses()`, `privileged_segmentation()`, `render()` _Req 1.4_
+  - [x] 1.1 `env/libero.py`: build standard LIBERO suites (goal/spatial/object/10) from the installed package's bddl/init files with depth on, 256 px; return stripped `Observation` (OpenCV extrinsics verified by projecting the EEF into the image) _Req 1.1, 1.5_
+  - [x] 1.2 `strip_privileged` + property test (Property 4) _Req 1.2_
+  - [x] 1.3 `env/arms.py`: `MountedUR5e` registration and init-state object transfer; smoke test that objects match Panda positions _Req 1.3_
+  - [x] 1.4 `kinematics()`, `_runner_success()`, `privileged_object_poses()`, `privileged_segmentation()`, `render()` _Req 1.4_
   - [ ] 1.5 LIBERO-Pro goal swap/task episodes from `data/raw/libero_pro` _Req 1.5_
   - [ ] 1.6 `env/bin_sort.py` (robosuite PickPlace, Panda/UR5e) and `env/desk_sort.py` (custom study scene, 6-10 objects, 5 init layouts) _Req 1.5_
 
