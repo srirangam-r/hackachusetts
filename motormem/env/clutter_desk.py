@@ -1,10 +1,9 @@
 """Cluttered desk sorting: the live demo scene.
 
-A wide LIBERO living-room table. Containers sit at the edges (desk caddy, wooden tray, basket) and a cabinet with
+A wide LIBERO living-room table. A wooden tray sits at one edge and a cabinet with
 three drawers stands at the side with free space in front of it, so an open drawer never blocks the clutter.
-Fourteen everyday items (books, mugs, snack boxes / packaging, cans, bottles, cartons) are dropped at random
-positions and headings into one dense zone and settled with physics, so they touch, lean on and lie on top of
-each other. The clutter is reproducible per `seed`.
+Twelve everyday items (boxes, cans, bottles, cartons) stand at random positions and headings spread over the
+desk, with no grid and no overlap. The layout is reproducible per `seed`.
 
 The agentview camera is moved up and back with a wider field of view so the whole desk is visible (nominal
 calibration is still read from the simulator's camera model, as for every scene).
@@ -26,16 +25,14 @@ from motormem.types import Arm
 SCENES_DIR = Path(__file__).resolve().parent / "scenes"
 SCENE = "clutter_desk_scene"
 # table frame (living_room_table, origin at the table centre): +x away from the robot, +y to the robot's left
-CABINET = ("wooden_cabinet", (0.22, -0.46), np.pi)
-CONTAINERS = {"desk_caddy": ((0.20, 0.44), np.pi / 2), "wooden_tray": ((-0.14, 0.46), 0.0),
-              "basket": ((-0.16, -0.40), 0.0)}
-ITEMS = ["black_book", "yellow_book", "porcelain_mug", "red_coffee_mug", "white_yellow_mug",
-         "butter", "cream_cheese", "chocolate_pudding", "ketchup", "alphabet_soup", "tomato_sauce",
-         "milk", "orange_juice", "salad_dressing"]
-CLUTTER_ZONE = ((-0.17, 0.15), (-0.20, 0.22))     # x range, y range (table frame)
-N_STACKED = 4                                      # items dropped on top of others
-DEFAULT_INSTRUCTION = ("tidy the desk: books in the caddy, mugs on the tray, food packaging in the basket, "
-                       "and the soup can in the top drawer")
+CABINET = ("wooden_cabinet", (0.20, -0.36), np.pi)
+CONTAINERS = {"wooden_tray": ((0.0, 0.35), 0.0)}
+ITEMS = ["ketchup", "butter", "cream_cheese", "chocolate_pudding", "alphabet_soup", "tomato_sauce",
+         "milk", "orange_juice", "salad_dressing", "bbq_sauce", "macaroni_and_cheese", "popcorn"]
+CLUTTER_ZONE = ((-0.16, 0.12), (-0.19, 0.21))     # x range, y range (table frame)
+MIN_GAP = 0.08                                     # centre-to-centre spacing: messy but not touching
+DEFAULT_INSTRUCTION = ("open the top drawer and put the butter in it, then put the ketchup and the soup cans "
+                       "on the tray")
 
 
 def _register_scene() -> None:
@@ -89,8 +86,8 @@ def generate_bddl(force: bool = False) -> Path:
     saved = dict(tgu.TASK_INFO)
     try:
         tgu.TASK_INFO.clear()
-        tgu.register_task_info(DEFAULT_INSTRUCTION, scene_name=SCENE, objects_of_interest=["black_book_1"],
-                               goal_states=[("In", "black_book_1", "desk_caddy_1_back_contain_region")])
+        tgu.register_task_info(DEFAULT_INSTRUCTION, scene_name=SCENE, objects_of_interest=["butter_1"],
+                               goal_states=[("In", "butter_1", "wooden_tray_1_contain_region")])
         with tempfile.TemporaryDirectory() as tmp:
             names, failures = tgu.generate_bddl_from_task_info(folder=tmp)
             if failures or len(names) != 1:
@@ -111,14 +108,11 @@ def _quat_wxyz_yaw(yaw: float, tilt: float = 0.0, tilt_axis: float = 0.0) -> np.
 
 
 def scatter(env, seed: int) -> None:
-    """Drop the items one at a time from above random spots in the clutter zone (random heading, some tilted)
-    and let each settle before the next: they land on the table or on each other, touching, leaning, stacked."""
+    """Place the items upright at random, non-overlapping positions and random headings, then settle."""
     rs, sim = env._rs, env.sim
     rng = np.random.default_rng(10_007 + int(seed))
     T = np.array(rs.workspace_offset if hasattr(rs, "workspace_offset") else (0.0, 0.0, 0.41), dtype=float)
     (x0, x1), (y0, y1) = CLUTTER_ZONE
-    order = list(ITEMS)
-    rng.shuffle(order)
     robot = rs.robots[0]
     qi = list(robot._ref_joint_pos_indexes) + list(getattr(robot, "_ref_gripper_joint_pos_indexes", []))
     vi = list(robot._ref_joint_vel_indexes) + list(getattr(robot, "_ref_gripper_joint_vel_indexes", []))
@@ -130,25 +124,29 @@ def scatter(env, seed: int) -> None:
             sim.data.qpos[qi] = q_hold
             sim.data.qvel[vi] = 0.0
 
-    for i, n in enumerate(order):
-        p = np.array([rng.uniform(x0, x1), rng.uniform(y0, y1)])
-        tilt = rng.uniform(0.2, 1.0) if i >= len(order) - N_STACKED else rng.uniform(0.0, 0.25)
-        _set_free(sim, rs, n, [T[0] + p[0], T[1] + p[1], T[2] + 0.30],
-                  _quat_wxyz_yaw(rng.uniform(-np.pi, np.pi), tilt, rng.uniform(-np.pi, np.pi)))
-        sim.forward()
-        settle(120)
-    settle(300)
-    # anything that bounced off the desk goes back onto the middle of the pile
-    for n in order:
-        jn = rs.objects_dict[f"{n}_1"].joints[0]
-        q = sim.data.get_joint_qpos(jn)
-        if q[2] < T[2] - 0.05 or not (x0 - 0.12 < q[0] - T[0] < x1 + 0.12 and y0 - 0.15 < q[1] - T[1] < y1 + 0.15):
-            _set_free(sim, rs, n, [T[0] + (x0 + x1) / 2, T[1] + (y0 + y1) / 2, T[2] + 0.35],
-                      _quat_wxyz_yaw(rng.uniform(-np.pi, np.pi)))
-            sim.forward()
-            settle(150)
+    placed: list[np.ndarray] = []
+    for n in ITEMS:
+        q_init = sim.data.get_joint_qpos(rs.objects_dict[f"{n}_1"].joints[0]).copy()  # LIBERO's resting pose
+        z0, quat0 = q_init[2], q_init[3:7]
+        for _ in range(500):
+            p = np.array([rng.uniform(x0, x1), rng.uniform(y0, y1)])
+            if all(np.linalg.norm(p - q) > MIN_GAP for q in placed):
+                break
+        placed.append(p)
+        _set_free(sim, rs, n, [T[0] + p[0], T[1] + p[1], z0 + 0.005],
+                  _yaw_times(rng.uniform(-np.pi, np.pi), quat0))       # same resting pose, random heading
+    sim.forward()
+    settle(150)
     sim.data.qvel[vi] = 0.0
     sim.forward()
+
+
+def _yaw_times(yaw: float, quat_wxyz) -> np.ndarray:
+    from scipy.spatial.transform import Rotation
+    w, x, y, z = quat_wxyz
+    r = Rotation.from_euler("z", yaw) * Rotation.from_quat([x, y, z, w])
+    x, y, z, w = r.as_quat()
+    return np.array([w, x, y, z])
 
 
 def _set_free(sim, rs, name: str, pos, quat_wxyz) -> None:
@@ -162,9 +160,9 @@ def widen_camera(env) -> None:
     """Move agentview up/back with a wider FOV so the whole desk is in view."""
     m = env.sim.model
     cid = m.camera_name2id("agentview")
-    m.cam_fovy[cid] = 62.0
+    m.cam_fovy[cid] = 54.0
     p = np.array(m.cam_pos[cid], dtype=float)
-    m.cam_pos[cid] = p + np.array([0.10, 0.0, 0.18])
+    m.cam_pos[cid] = p + np.array([0.04, 0.0, 0.12])
 
 
 def object_status(env) -> dict[str, str]:
@@ -172,8 +170,7 @@ def object_status(env) -> dict[str, str]:
     from libero.libero.envs.predicates import eval_predicate_fn
 
     st = env._rs.object_states_dict
-    regions = {"caddy": [r for r in st if r.startswith("desk_caddy_1_") and r.endswith("contain_region")],
-               "tray": ["wooden_tray_1_contain_region"], "basket": ["basket_1_contain_region"],
+    regions = {"tray": ["wooden_tray_1_contain_region"],
                "drawer": [f"wooden_cabinet_1_{d}_region" for d in ("top", "middle", "bottom")]}
     out = {}
     for n in ITEMS:

@@ -17,7 +17,7 @@ if len(sys.argv) > 2 and sys.argv[2]:
     lines, _, text = b.run(parse_program(sys.argv[2].replace(";", "\n")))
     print("\n".join(lines))
     print(text.split("objects")[-1][:600])
-from motormem.env.grocery_sort import object_status  # noqa: E402  (diagnostic only)
+from motormem.env.clutter_desk import object_status  # noqa: E402  (diagnostic only)
 print("STATUS", object_status(b.env), {k: round(float(v), 3) for k, v in b.env.privileged_joint_positions().items()})
 if len(sys.argv) > 3:
     import numpy as np
