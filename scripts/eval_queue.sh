@@ -9,7 +9,7 @@ for entry in "$@"; do
   echo "[$q $(date +%H:%M)] start $name"
   env -u PYTHONPATH MUJOCO_GL=egl .venv/bin/python -m motormem.brain.runner \
     --suite "$suite" --tasks 0-9 --episodes "$EPISODES" --arm "$arm" --motion-source "$motion" \
-    --model auto --parallel 4 --name "$name" --backend real --perception sam3 \
+    --model auto --parallel ${PARALLEL:-4} --name "$name" --backend real --perception sam3 \
     --index-path data/index/libero_goal.pkl --max-steps 900 --timeout 420 > "logs/$name.log" 2>&1
   echo "[$q $(date +%H:%M)] done $name: $(tail -1 runs/$name/summary.md 2>/dev/null)"
 done
