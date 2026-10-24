@@ -29,11 +29,11 @@ Streams run in parallel git worktrees (`../wt-<stream>`, branch `stream/<stream>
   - [x] 3.5 Index report: segments per kind/object, failure counts — `runs/index_report.md`
 
 - [ ] 4. Stream D: skills
-  - [ ] 4.1 `skills/control.py`: `Controller.track` (absolute targets via clipped OSC deltas), gripper, holding _Req 4.3, 4.6_
-  - [ ] 4.2 `skills/feasibility.py`: damped-least-squares IK on `ArmKinematics` copy + joint limits _Req 4.1_
-  - [ ] 4.3 `skills/core.py`: `pick`, `place` (index retarget + held-offset correction), `push`, `home`, primitive fallback, `motion_source` switch _Req 4.1, 4.2, 4.5_
-  - [ ] 4.4 `skills/articulation.py`: `actuate` with equilibrium-point lead, online line/circle fit, stall/slip detection + property test (Property 8) _Req 4.4_
-  - [ ] 4.5 Rung-0 smoke: with oracle perception, scripted pick/place/actuate on 3 LIBERO-Goal tasks, Panda and UR5e
+  - [x] 4.1 `skills/control.py`: `Controller.track` (absolute targets via clipped OSC deltas), gripper, holding _Req 4.3, 4.6_
+  - [x] 4.2 `skills/feasibility.py`: damped-least-squares IK on `ArmKinematics` copy + joint limits _Req 4.1_
+  - [x] 4.3 `skills/core.py`: `pick`, `place` (index retarget + held-offset correction), `push`, `home`, primitive fallback, `motion_source` switch _Req 4.1, 4.2, 4.5_
+  - [x] 4.4 `skills/articulation.py`: `actuate` with equilibrium-point lead, online line/circle fit, stall/slip detection + property test (Property 8) _Req 4.4_
+  - [ ] 4.5 Rung-0 smoke: with oracle perception, scripted pick/place/actuate on 3 LIBERO-Goal tasks, Panda and UR5e (Panda done 8/8 index+actuate, primitive place off-target; UR5e grasps fail: Robotiq calibration open)
 
 - [ ] 5. Stream E: brain
   - [ ] 5.1 `brain/program.py` grammar + property test (Property 6) _Req 5.2_
