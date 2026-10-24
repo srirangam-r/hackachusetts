@@ -1,0 +1,10 @@
+{
+  "name": "pro_task_panda",
+  "episodes": 50,
+  "success": 6,
+  "rate": 0.12,
+  "mean_tool_calls": 2.86,
+  "mean_brain_s": 19.981557369232178,
+  "index_motions": 62,
+  "primitive_motions": 14
+}

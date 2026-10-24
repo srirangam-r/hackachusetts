@@ -34,21 +34,26 @@ Our rules ([.kiro/steering/fairness.md](.kiro/steering/fairness.md)) keep the nu
 
 ## Results
 
-Work in progress. Numbers marked `TODO(result)` haven't been measured yet.
+All numbers are from our own runs on this laptop. Kiro is the brain (model `auto`), SAM 3 perception, no simulator state, no success signal to the agent, no practice on test tasks. Small samples (5 episodes per task); treat differences under ~10 points as noise. Per-run tables are in [`results/`](results/).
 
-| experiment | result | evidence |
+**Before the "keep it simple" pivot** (contact proposals + self-checking skills, in progress):
+
+| experiment | success | mean Kiro tool calls | notes |
+|---|---|---|---|
+| LIBERO-Goal, Panda (10 tasks x 5 inits) | 33/50 (66%) | 3.8 | 5/5 on bowl->stove, bottle->cabinet, bowl->plate, open middle drawer; 0/5 open top drawer + bowl inside |
+| LIBERO-Goal, **UR5e** (same Panda demos, zero UR5e demos) | 30/50 (60%) | 3.3 | same index, same code; wine bottle -> rack 5/5 |
+| LIBERO-Pro Goal, moved objects (position perturbation) | 15/50 (30%) | 2.6 | pi0.5 averages 13% across LIBERO-Pro perturbations (0-38% per cell); OpenVLA / pi0 0% |
+| LIBERO-Pro Goal, new instructions (task perturbation) | 6/50 (12%) | 2.9 | most new goals involve drawers and the cream cheese, our weakest skills |
+
+**Diagnostic ladder** (scripted programs, no Kiro calls; 3 inits per task; not results, used to find where failures come from): with ground-truth poses vs SAM 3 vs the Kiro brain, the brain beat the script on 9 of 20 task-arm pairs (recovery, choosing push targets), so the remaining losses are in contact skills (drawer handle, box grasp, push distance, bottle placement) and perception (missing labels), which is what the pivot targets. See `docs/architecture.md`.
+
+| other experiments | result | evidence |
 |---|---|---|
-| LIBERO-Goal, Panda (10 tasks x 10 inits) | TODO(result) | `runs/<name>/summary.md` |
-| LIBERO-Pro Goal (moved objects, new wording) | TODO(result) | |
-| LIBERO-Goal on UR5e, zero UR5e demos | TODO(result) | |
-| Ablation: same brain, primitive motion only (`--motion-source primitive`) | TODO(result) | |
-| First full episode (real backend: SAM 3, motor memory, no GT): "put the bowl on the plate" | solved in 162 sim steps / 7.5 s, using a grasp segment from a *different* task's demo | TODO(result): trace not yet saved under `runs/` |
-| Grasp retargeting smoke test (rung-0 diagnostic, GT poses) | 25/25 lifted with closed-loop tracking vs 0/25 with open-loop replay | `runs/index_report.md` |
-| Perception on LIBERO-Goal init frames (Grounding DINO + SAM 2.1 fallback) | 80/140 detected (bowl, plate, bottle, stove 20/20; cream cheese, wine rack, cabinet 0/20); visible-centroid error median 0.8 cm, p90 2.6 cm | `runs/perception_check/report.md`. TODO(result): rerun with SAM 3 (access just granted) |
-| Skills smoke (pick/place/actuate per arm) | TODO(result) | `runs/skills_smoke/results.md` (not generated yet) |
-| Desk sorting scene, Panda, hybrid (early runs) | 2/5, 2/5, 1/5 objects sorted (layouts 0-2) | `runs/videos/results.jsonl` |
-| Industrial bin sorting (early runs) | Panda 0/4 and 1/4 (layouts 0, 1); UR5e 0/4 | `runs/videos/results.jsonl` |
-| Editability: remove an object's demos, then add one back | TODO(result): not demonstrated yet (all early runs 0/1) | `runs/videos/results.jsonl` |
+| Grasp retargeting smoke test (ground-truth poses) | 25/25 lifted with closed-loop tracking vs 0/25 with open-loop replay | `runs/index_report.md` |
+| Perception (Grounding DINO + SAM 2.1 fallback, before SAM 3 access) | bowl, plate, bottle, stove 20/20; cream cheese, wine rack, cabinet 0/20 | `runs/perception_check/report.md` |
+| SAM 3 noun retry (generic prompt variants) | wine rack 0/3 -> 3/3, cream cheese 0/3 -> 3/3, black bowl 6/9 -> 9/9 frames | `logs/report_percep.md` |
+| Editability (desk scene, black book) | demos removed + index-only: `NO_CANDIDATE: no demo of black book in motor memory`; all demos: picked with a STUDY_SCENE3 book demo and placed in the caddy | `runs/videos/editability.jsonl` |
+| Desk sorting, industrial bin sorting | early runs only, being redone after the pivot | `runs/videos/results.jsonl` |
 
 `runs/` and `data/` are git-ignored; they live in the main checkout.
 

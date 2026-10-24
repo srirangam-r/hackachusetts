@@ -1,0 +1,10 @@
+{
+  "name": "pro_swap_panda",
+  "episodes": 50,
+  "success": 15,
+  "rate": 0.3,
+  "mean_tool_calls": 2.62,
+  "mean_brain_s": 19.66018934249878,
+  "index_motions": 36,
+  "primitive_motions": 27
+}
