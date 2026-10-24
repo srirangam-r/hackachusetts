@@ -122,7 +122,7 @@ class RobotSession:
                "model": self.extras.get("model") or (self.spec.model if self.spec else None),
                "tool_calls": self.calls, "tool_counts": dict(self.tool_counts),
                "program_errors": self.program_errors, "tool_limit_hit": self.limit_hit,
-               "brain_wall_s": (self.last_call_t - self.first_call_t) if self.first_call_t else 0.0,
+               "brain_wall_s": ((self.last_call_t or time.time()) - self.first_call_t) if self.first_call_t else 0.0,
                "server_uptime_s": time.time() - self.t0, "error": self.error,
                "done_summary": getattr(self.backend, "summary", None)}
         if self.backend is not None:
@@ -149,6 +149,11 @@ class RobotSession:
         try:
             out = self._dispatch(tool, args, rec)
         except Exception as e:                              # never crash the episode
+            import traceback
+            tb = traceback.format_exc()
+            if self.out:
+                with open(self.out / "errors.log", "a") as f:
+                    f.write(tb + "\n")
             out = [f"ERROR: {type(e).__name__}: {str(e)[:200]}"]
         out = [sanitize(o) if isinstance(o, str) else o for o in out]
         self.last_call_t = time.time()
