@@ -98,7 +98,7 @@ class MotorMemory:
         """
         if not label:
             return None
-        names = self._all_names()
+        names = self._all_names() | {o for o in self._ex_obj if " " not in o}  # excluded names are known names
         raw = label.strip().lower().replace(" ", "_")
         if raw in names:
             return raw

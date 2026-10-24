@@ -11,7 +11,7 @@ from typing import Callable, Iterator
 import numpy as np
 
 from motormem import geometry as g
-from motormem.skills.control import (GRIPPER_CLOSING_AXIS, GRIPPER_MAX_WIDTH, Controller,
+from motormem.skills.control import (GRIPPER_CLOSING_AXIS, GRIPPER_MAX_WIDTH, GRIPPER_RIM_EXTRA_DEPTH, Controller,
                                      StepBudgetExceeded, densify)
 from motormem.skills.feasibility import Feasibility
 from motormem.types import ObjectEstimate, Segment, SegmentKind, SkillResult, Status
@@ -22,6 +22,7 @@ CONTACT_RADIUS = 0.06     # segment poses within this distance of the gripper ev
 NEAR_TIE = 0.02           # registration hypotheses within this fitness of the best are near-ties
 MIN_FITNESS = 0.3         # reject registrations worse than this
 MAX_IK_WAYPOINTS = 60
+BLOCKED_ERR = 0.015       # approach ending this far from the grasp pose = blocked; retry another grasp
 RELATION_OFFSETS = {      # robot-base frame directions for spatial relations
     "left_of": (0, 1), "right_of": (0, -1), "front_of": (1, 0), "back_of": (-1, 0),
 }
@@ -224,7 +225,28 @@ class Skills:
     # ================================================================ pick
     def _grasp_plans(self, obj: ObjectEstimate, segs: list[Segment]) -> Iterator[Plan]:
         for seg in segs:
-            yield from self._segment_plans(seg, obj, close=True)
+            yield from self._segment_plans(seg, obj, close=True, correct=self._rim_depth(obj))
+
+    def _rim_depth(self, obj: ObjectEstimate) -> Callable | None:
+        """Grasp correction for this gripper: rim grasps (object wider than the jaw, closing near its top)
+        go GRIPPER_RIM_EXTRA_DEPTH deeper. None (no-op) for the Panda."""
+        extra = GRIPPER_RIM_EXTRA_DEPTH.get(self.ctrl.gripper_key(), 0.0)
+        width, _ = self._gripper_geometry()
+        if extra <= 0 or obj.extent[1] <= width - 0.015:
+            return None
+        z_top, z_bot = obj.points_world[:, 2].max(), obj.points_world[:, 2].min()
+
+        def correct(demo: np.ndarray, seg: Segment) -> list[tuple[str, np.ndarray]]:
+            grip = np.asarray(seg.gripper, dtype=float)
+            ev = np.flatnonzero(grip > 0)
+            z_ev = demo[int(ev[0]) if len(ev) else -1, 2, 3]
+            dz = min(extra, max(0.0, z_ev - (z_bot + 0.012)))
+            if z_ev < z_top - 0.035 or dz <= 0:
+                return [("none", demo)]
+            deeper = demo.copy()
+            deeper[:, 2, 3] -= dz
+            return [("rim_deeper", deeper)]
+        return correct
 
     def _segment_plans(self, seg: Segment, obj: ObjectEstimate, close: bool,
                        correct: Callable[[np.ndarray, Segment], list[tuple[str, np.ndarray]]] | None = None
@@ -293,7 +315,11 @@ class Skills:
     def _do_grasp(self, plan: Plan, obj: ObjectEstimate) -> SkillResult:
         self._ensure_open()
         e = plan.event
-        self.ctrl.track(plan.targets[:e + 1], -1.0)
+        r = self.ctrl.track(plan.targets[:e + 1], -1.0)
+        if r.pos_err > BLOCKED_ERR and plan.info.get("variant") == "rim_deeper":
+            # stopped short of a rim grasp (e.g. the forearm touches the scene): do not pinch with the fingertips
+            return SkillResult(Status.GRASP_FAILED, f"pick: approach blocked {r.pos_err * 100:.1f} cm short",
+                               segment_id=plan.segment_id, info={"blocked": True})
         self.ctrl.gripper(1.0, 12)
         T_close = self.ctrl.pose().copy()
         self.ctrl.track(plan.targets[e + 1:], 1.0)
@@ -346,7 +372,7 @@ class Skills:
             for s in (1, -1):
                 opts.append(("center", g.make_pose([c[0], c[1], z], topdown_rotation(s * minor, col))))
         else:  # too wide: grasp the rim/edge, fingers closing radially
-            z = max(z_top - 0.02, z_bot + 0.012)
+            z = max(z_top - 0.02 - GRIPPER_RIM_EXTRA_DEPTH.get(self.ctrl.gripper_key(), 0.0), z_bot + 0.012)
             for u, half in ((ax, ext[0] / 2), (-ax, ext[0] / 2), (minor, ext[1] / 2), (-minor, ext[1] / 2)):
                 p = c + u * (half - 0.01)
                 for s in (1, -1):
@@ -360,14 +386,23 @@ class Skills:
         if obj.points_world is None or len(obj.points_world) < 20:
             return SkillResult(Status.PERCEPTION_FAILED, f"pick: too few points on mark {obj.mark}")
         reason = ""
-        for kind, T_grasp in self._primitive_grasp_options(obj):
+        n_blocked = 0
+        opts = self._primitive_grasp_options(obj)
+        for i_opt, (kind, T_grasp) in enumerate(opts):
             app = self._approach(T_grasp, lift=LIFT)
             targets = np.concatenate([app, self._lifted(T_grasp)])
             ok, reason = self._feasible(targets)
             if not ok:
                 continue
             self._ensure_open()
-            self.ctrl.track(app, -1.0)
+            r = self.ctrl.track(app, -1.0)
+            rim_retry = kind == "edge" and GRIPPER_RIM_EXTRA_DEPTH.get(self.ctrl.gripper_key(), 0.0) > 0
+            if rim_retry and r.pos_err > BLOCKED_ERR and n_blocked < 2 and i_opt < len(opts) - 1:
+                # the arm stopped short (e.g. a link touches the scene): back off and try the next grasp
+                n_blocked += 1
+                reason = f"approach blocked {r.pos_err * 100:.1f} cm short"
+                self.ctrl.track(self._lifted(self.ctrl.pose(), 0.05), -1.0)
+                continue
             self.ctrl.gripper(1.0, 12)
             T_close = self.ctrl.pose().copy()
             self.ctrl.track(self._lifted(T_close), 1.0)

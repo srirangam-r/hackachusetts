@@ -19,12 +19,16 @@ ROT_SCALE = config.ACTION_ROT_SCALE   # radians per unit action per step
 # (closed_below, open_above): opening < closed_below = closed on nothing; > open_above = open/empty.
 GRIPPER_THRESHOLDS: dict[int, tuple[float, float]] = {
     2: (0.03, 0.80),    # PandaGripper (calibrated in LIBERO: empty close ~0.00, bowl rim ~0.05+)
-    6: (0.04, 0.80),    # Robotiq85Gripper
+    6: (0.008, 0.80),   # Robotiq85LinkedGripper: empty close reads 0.000; a thin bowl rim pinched at the tips 0.012+
 }
 # Usable finger opening (metres) per gripper, keyed the same way.
 GRIPPER_MAX_WIDTH: dict[int, float] = {2: 0.08, 6: 0.085}
 # Closing axis of the fingers in the grip-site frame, keyed the same way (verified: both close along site x).
 GRIPPER_CLOSING_AXIS: dict[int, int] = {2: 0, 6: 0}
+# Extra pad-centre depth for rim/edge grasps (object wider than the jaw). The Robotiq85 pinching a bowl rim at the
+# Panda depth holds it only with the fingertips: the rim pivots on lift and the jaw reads as nearly closed
+# (opening 0.03 -> 0.015 < threshold). 1 cm deeper the pads take the wall (opening 0.15 -> 0.08 after lift).
+GRIPPER_RIM_EXTRA_DEPTH: dict[int, float] = {2: 0.0, 6: 0.01}
 
 # Panda-equivalent tool frame. Segments are recorded as PandaGripper grip-site poses; what must transfer is the
 # pinch geometry, i.e. the finger-pad centre. Panda pads (prismatic) sit at a constant z = -4 mm in the site
