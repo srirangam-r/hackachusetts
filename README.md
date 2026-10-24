@@ -37,7 +37,17 @@ Our rules ([.kiro/steering/fairness.md](.kiro/steering/fairness.md)) keep the nu
 ```bash
 env -u PYTHONPATH MUJOCO_GL=egl .venv/bin/python scripts/live.py
 ```
-Opens http://localhost:8765: type a task (e.g. "open the top drawer and put the ketchup in it, then put the soup cans and the milk on the tray"), press Run, and watch the robot camera next to the Kiro brain's plan and each skill's status. Every run starts from a fresh scene; an mp4 is written to `runs/videos/`.
+Opens http://localhost:8765: type a task (e.g. "open the top drawer and put the ketchup in it, then put the soup cans and the milk on the tray") and press Run task. Every run starts from a fresh scene; an mp4 is written to `runs/videos/`.
+
+![Live demo page](docs/img/live_demo.png)
+
+The page has one column for each layer:
+- **Robot camera:** the live sim view (~10 fps); once the run ends, a replay at 2x.
+- **Kiro decides what:** each Kiro turn shows what it read in the images, its plan, the program it sent, and each step's result.
+- **SAM 3 finds where:** the two marked camera images and the list of marks Kiro saw before writing that program. This is everything the brain gets.
+- **Human demos show how:** for every motion, the human demo it was copied from (frames cut from the raw LIBERO hdf5, played in step with the replay), or "computed from geometry" when no demo fit.
+
+The timeline colours every skill call by motion source and marks failures; click or drag it to scrub. The options next to the examples switch the arm (Panda / UR5e), make the robot forget one object's demos (editability), or restrict motion to demos only or geometry only (ablation). Everything on the page is read from the files the episode already writes; the page never talks to the sim. `--name <session>` reopens an earlier session under `runs/live/` so its runs replay; `?ep=ep_002&t=120&play=1` links to a moment of a run (useful for recording), and `?theme=dark` forces dark mode.
 
 The scene (`motormem/env/clutter_desk.py`) is a wide desk with twelve everyday items (bottles, cans, cartons, snack boxes) standing at random spots and headings, a wooden tray and a cabinet with three drawers. Nothing is on a grid; the layout is reproducible per seed. The brain sees only camera images with SAM 3 marks; it plans every step in one program, the skills check their own results, and it calls `done` itself.
 

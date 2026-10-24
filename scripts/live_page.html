@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motor Memory live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #e9edf0;
+  --surface: #f8f9fa;
+  --ink: #16202a;
+  --ink-2: #56626e;
+  --rule: #d2d9df;
+  --screen: #0d1217;
+  --brain: #5a43c8;
+  --brain-soft: #ebe7fb;
+  --demo: #0a7479;
+  --demo-soft: #dcefef;
+  --geo: #9c5c00;
+  --geo-soft: #f6e8d4;
+  --ok: #1d7443;
+  --bad: #b3322a;
+  --bad-soft: #f8e1de;
+  --focus: #1f5fd1;
+  --on-accent: #ffffff;
+  --sans: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --mono: "Atkinson Hyperlegible Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10161c; --surface: #172029; --ink: #e5eaef; --ink-2: #9aa6b1; --rule: #2a3540; --screen: #05080b;
+    --brain: #a896ff; --brain-soft: #282345; --demo: #45c2c6; --demo-soft: #11353a; --geo: #eda443;
+    --geo-soft: #3a2a12; --ok: #5cc68b; --bad: #ff7d70; --bad-soft: #3d1f1c; --focus: #7fb0ff; --on-accent: #071013;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10161c; --surface: #172029; --ink: #e5eaef; --ink-2: #9aa6b1; --rule: #2a3540; --screen: #05080b;
+  --brain: #a896ff; --brain-soft: #282345; --demo: #45c2c6; --demo-soft: #11353a; --geo: #eda443;
+  --geo-soft: #3a2a12; --ok: #5cc68b; --bad: #ff7d70; --bad-soft: #3d1f1c; --focus: #7fb0ff; --on-accent: #071013;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font: 400 16px/1.45 var(--sans);
+  padding: 14px 20px 16px; display: flex; flex-direction: column; gap: 12px; min-height: 100vh;
+}
+h1, h2, h3, p, ol, ul, figure, dl, dd { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ------------------------------------------------------------------ top */
+.top { display: flex; align-items: baseline; gap: 24px; flex-wrap: wrap; }
+.top h1 { font-size: 26px; line-height: 1.1; font-weight: 700; letter-spacing: -0.01em; }
+.pitch { color: var(--ink-2); font-size: 16px; max-width: 64ch; }
+.facts { margin-left: auto; display: flex; gap: 22px; font-size: 14px; color: var(--ink-2); }
+.facts div { display: flex; gap: 6px; align-items: baseline; }
+.facts dt { color: var(--ink-2); }
+.facts dd { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.task { display: flex; flex-direction: column; gap: 8px; }
+.task-row { display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; }
+.task form { flex: 1 1 520px; display: flex; gap: 10px; min-width: 0; }
+.task input {
+  flex: 1; min-width: 0; font-size: 19px; padding: 11px 14px; border-radius: 8px;
+  border: 1.5px solid var(--rule); background: var(--surface);
+}
+.task input:focus-visible { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
+.run-btn {
+  font-size: 18px; font-weight: 700; padding: 0 22px; border-radius: 8px; border: 0;
+  background: var(--ink); color: var(--surface); cursor: pointer;
+}
+.run-btn:disabled { background: var(--rule); color: var(--ink-2); cursor: default; }
+.history { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-2); min-width: 0; }
+.history select {
+  max-width: min(380px, 100%); min-width: 0; padding: 9px 10px; border-radius: 8px; border: 1.5px solid var(--rule);
+  background: var(--surface); font-size: 15px;
+}
+.examples { flex: 1 1 400px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); }
+.ex {
+  border: 1px solid var(--rule); background: transparent; border-radius: 999px; padding: 3px 12px;
+  font-size: 14px; color: var(--ink); cursor: pointer;
+}
+.ex:hover { background: var(--surface); }
+.opts { flex: 0 1 auto; display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); justify-content: flex-end; }
+.opts label { display: inline-flex; gap: 6px; align-items: center; }
+.opts select { max-width: 100%; padding: 4px 8px; border-radius: 7px; border: 1.5px solid var(--rule); background: var(--surface); font-size: 14px; }
+.seg { display: inline-flex; border: 1.5px solid var(--rule); border-radius: 7px; overflow: hidden; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { padding: 3px 11px; cursor: pointer; color: var(--ink); }
+.seg input:checked + span { font-weight: 700; }
+.seg label:has(input:checked) { background: var(--ink); color: var(--surface); }
+.seg label:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: -3px; }
+.settings { font-size: 14px; color: var(--ink-2); }
+.settings b { color: var(--ink); font-weight: 600; }
+.settings .warn { color: var(--geo); font-weight: 700; }
+.msg-line { font-size: 14px; color: var(--bad); }
+.msg-line:empty { display: none; }
+
+/* ------------------------------------------------------------------ main grid */
+.board {
+  display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr) minmax(0, 0.92fr);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; min-height: 0; flex: 1;
+}
+.pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; padding: 14px 16px 14px; }
+.pane + .pane { border-left: 1px solid var(--rule); }
+.pane-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.pane-head h2 { font-size: 19px; font-weight: 700; line-height: 1.2; }
+.pane-head .sub { font-size: 14px; color: var(--ink-2); }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; align-self: center; flex: none; }
+
+/* camera */
+.cam .pane-head { justify-content: space-between; }
+.mode { font-size: 14px; font-weight: 600; display: inline-flex; gap: 7px; align-items: center; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.mode.live { color: var(--bad); }
+.mode.live::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.screen { aspect-ratio: 1 / 1; display: grid; place-items: center; background: var(--screen); border-radius: 6px; overflow: hidden; }
+.screen img { display: block; max-width: 100%; max-height: 100%; aspect-ratio: 1 / 1; object-fit: contain; height: 100%; }
+.caption { margin-top: 10px; font-size: 18px; font-weight: 600; min-height: 2.9em; display: flex; flex-direction: column; justify-content: center; }
+.caption small { font-size: 14px; font-weight: 400; color: var(--ink-2); }
+
+/* brain */
+.brain .pane-head .dot { background: var(--brain); }
+.turns { overflow-y: auto; min-height: 0; flex: 1; padding-right: 6px; max-height: 80vh; }
+.turn { border-left: 3px solid var(--rule); padding: 2px 0 12px 14px; position: relative; }
+.turn.active { border-left-color: var(--brain); }
+.turn.pending { border-left-style: dashed; border-left-color: var(--brain); }
+.turn-head { display: flex; align-items: baseline; gap: 8px; cursor: pointer; }
+.turn-head .n {
+  font-size: 13px; font-weight: 700; color: var(--brain); background: var(--brain-soft);
+  border-radius: 5px; padding: 0 6px; font-variant-numeric: tabular-nums;
+}
+.turn-head .what { font-weight: 700; font-size: 16px; }
+.turn-head .dt { margin-left: auto; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.say { font-size: 15px; margin-top: 4px; }
+.thought { font-size: 15px; margin-top: 6px; padding: 4px 10px; background: var(--brain-soft); border-radius: 6px; }
+.plan { margin-top: 6px; font-size: 15px; counter-reset: plan; }
+.plan li { counter-increment: plan; padding-left: 26px; position: relative; }
+.plan li::before { content: counter(plan); position: absolute; left: 4px; color: var(--brain); font-weight: 700; font-size: 14px; }
+.plan-title { margin-top: 6px; font-size: 14px; font-weight: 700; color: var(--brain); }
+.finds { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; color: var(--ink-2); }
+.chip { border: 1px solid var(--rule); border-radius: 999px; padding: 0 9px; color: var(--ink); background: var(--surface); }
+.program { margin-top: 8px; display: grid; gap: 6px; }
+.step { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: baseline; padding: 6px 10px; border-radius: 6px; background: color-mix(in srgb, var(--rule) 30%, transparent); }
+.step code { font: 600 15px/1.3 var(--mono); }
+.step .lbl { font-size: 15px; color: var(--ink-2); }
+.step .st { font-size: 14px; font-weight: 700; justify-self: end; }
+.step .msg { grid-column: 1 / -1; font-size: 13.5px; color: var(--ink-2); }
+.st.ok { color: var(--ok); } .st.bad { color: var(--bad); } .st.skip, .st.run { color: var(--ink-2); }
+.tag { font-size: 12.5px; font-weight: 700; border-radius: 4px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
+.tag.demo { background: var(--demo-soft); color: var(--demo); }
+.tag.geometry { background: var(--geo-soft); color: var(--geo); }
+.error-box { margin-top: 6px; padding: 6px 10px; border-radius: 6px; background: var(--bad-soft); color: var(--bad); font-size: 14px; }
+.final { margin-top: 6px; font-size: 15px; font-weight: 600; }
+.empty { color: var(--ink-2); font-size: 15px; max-width: 46ch; }
+.thinking { color: var(--brain); font-size: 15px; margin-top: 6px; font-weight: 600; }
+
+/* right column */
+.right { padding: 0; }
+.right section { padding: 14px 16px; display: flex; flex-direction: column; min-height: 0; }
+.where { flex: 1 1 auto; }
+.how { border-top: 1px solid var(--rule); flex: none; }
+.views { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.views figure { min-width: 0; }
+.views .ph { aspect-ratio: 1 / 1; background: var(--screen); border-radius: 6px; overflow: hidden; display: grid; place-items: center; }
+.views img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.views img[hidden] { display: none; }
+.views .ph span { font-size: 13px; color: #8d99a5; padding: 10px; text-align: center; }
+.views .ph img:not([hidden]) + span { display: none; }
+.views figcaption { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
+.objects { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px 6px; overflow-y: auto; min-height: 0; max-height: 7.5em; align-content: flex-start; }
+.objects li { font-size: 14px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--rule); border-radius: 999px; padding: 0 9px 0 2px; }
+.objects b { font-size: 12px; background: var(--ink); color: var(--surface); border-radius: 999px; min-width: 20px; height: 20px; display: inline-grid; place-items: center; padding: 0 5px; font-variant-numeric: tabular-nums; }
+.objects .notes { flex-basis: 100%; border: 0; padding: 0; color: var(--ink-2); font-size: 13px; }
+.fair { margin-top: 10px; font-size: 14px; color: var(--ink-2); border-left: 3px solid var(--ok); padding-left: 10px; }
+.fair strong { color: var(--ink); font-weight: 600; }
+.how .pane-head .dot { background: var(--demo); }
+.where .pane-head .dot { background: var(--ink); }
+.clip-row { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 14px; align-items: start; }
+.clip { aspect-ratio: 1 / 1; border-radius: 6px; border: 1.5px dashed var(--rule); background-repeat: no-repeat; position: relative; overflow: hidden; }
+.clip.demo { border: 0; background-color: var(--screen); outline: 3px solid var(--demo); outline-offset: -3px; }
+.clip.geometry { border: 0; background: repeating-linear-gradient(135deg, var(--geo-soft) 0 10px, transparent 10px 20px), var(--surface); outline: 2px solid var(--geo); outline-offset: -2px; display: grid; place-items: center; }
+.clip.geometry span { font-weight: 700; color: var(--geo); font-size: 15px; text-align: center; padding: 8px; }
+.clip-text { font-size: 15px; display: grid; gap: 4px; }
+.clip-text .kind { font-weight: 700; font-size: 16px; }
+.clip-text .kind.demo { color: var(--demo); } .clip-text .kind.geometry { color: var(--geo); }
+.clip-text .task-q { font-size: 16px; }
+.clip-text .meta { font-size: 14px; color: var(--ink-2); }
+
+/* ------------------------------------------------------------------ timeline */
+.timeline {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 16px 12px;
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; align-items: center;
+}
+.tl-left { display: flex; gap: 8px; align-items: center; grid-row: 1 / 3; }
+.play {
+  border: 1.5px solid var(--ink); background: transparent; border-radius: 8px; padding: 7px 14px;
+  font-weight: 700; font-size: 15px; cursor: pointer; min-width: 132px;
+}
+.play:disabled { border-color: var(--rule); color: var(--ink-2); cursor: default; }
+.live-btn { border: 0; background: none; color: var(--bad); font-weight: 700; cursor: pointer; font-size: 15px; }
+.live-btn[hidden] { display: none; }
+.clock { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 92px; }
+.track { position: relative; height: 54px; cursor: pointer; border-radius: 6px; background: color-mix(in srgb, var(--rule) 35%, transparent); touch-action: none; }
+.track .empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 14px; }
+.blk {
+  position: absolute; top: 18px; bottom: 6px; border-radius: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 13px; font-weight: 700; padding: 0 6px; line-height: 30px; color: var(--on-accent); border: 0; text-align: left; cursor: pointer;
+}
+.blk.demo { background: var(--demo); }
+.blk.geometry { background: var(--geo); }
+.blk.failed { background-image: repeating-linear-gradient(135deg, rgba(0,0,0,.28) 0 6px, transparent 6px 12px); box-shadow: inset 0 -4px 0 var(--bad); }
+.run-mark { position: absolute; top: 2px; height: 14px; border-left: 1.5px solid var(--brain); border-right: 1.5px solid var(--brain); border-top: 1.5px solid var(--brain); border-radius: 3px 3px 0 0; font-size: 11px; line-height: 11px; color: var(--brain); font-weight: 700; padding: 1px 4px 0; overflow: hidden; white-space: nowrap; }
+.obs-mark { position: absolute; top: 20px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg); background: var(--brain); border-radius: 2px; }
+.head { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink); pointer-events: none; }
+.head::before { content: ""; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: var(--ink); }
+.tl-foot { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); }
+.legend { display: flex; gap: 14px; }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend i { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend .l-demo { background: var(--demo); } .legend .l-geo { background: var(--geo); }
+.legend .l-fail { background: repeating-linear-gradient(135deg, var(--bad) 0 3px, transparent 3px 6px); outline: 1px solid var(--bad); }
+.legend .l-obs { width: 9px; height: 9px; transform: rotate(45deg); background: var(--brain); }
+.summary { margin-left: auto; display: flex; gap: 16px; flex-wrap: wrap; align-items: baseline; }
+.summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.summary a { color: var(--focus); font-weight: 600; }
+
+/* ------------------------------------------------------------------ layout sizes */
+/* one fixed screen (no page scroll) when it fits, e.g. a 1080p recording; smaller screens scroll */
+@media (min-width: 1200px) and (min-height: 880px) {
+  body { height: 100vh; overflow: hidden; }
+  .screen { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; }
+  .turns { max-height: none; }
+  .right { overflow-y: auto; }
+  .views .ph { max-height: 30vh; }
+  .views img { object-fit: contain; }
+}
+@media (max-width: 1199px) {
+  .board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .right { grid-column: 1 / -1; border-left: 0 !important; border-top: 1px solid var(--rule); display: grid; grid-template-columns: 1fr 1fr; }
+  .how { border-top: 0; border-left: 1px solid var(--rule); }
+}
+@media (max-width: 820px) {
+  body { padding: 12px 16px; }
+  .opts { justify-content: flex-start; }
+  .task form { flex-direction: column; flex-basis: 100%; }
+  .history, .history select { width: 100%; max-width: 100%; }
+  .run-btn { padding: 12px; }
+  .facts { margin-left: 0; flex-wrap: wrap; gap: 6px 16px; }
+  .board, .right { grid-template-columns: 1fr; }
+  .pane + .pane, .how { border-left: 0; border-top: 1px solid var(--rule); }
+  .timeline { grid-template-columns: 1fr; }
+  .tl-left { grid-row: auto; }
+  .clip-row { grid-template-columns: 120px 1fr; }
+  .step { grid-template-columns: 1fr auto; }
+  .step code { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mode.live::before { animation: none; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Motor Memory</h1>
+  <p class="pitch">Type a task. Kiro plans it, SAM 3 finds the objects, and recorded human demos supply the motions.</p>
+  <dl class="facts" id="facts"></dl>
+</header>
+
+<section class="task" aria-label="Task">
+  <div class="task-row">
+  <form id="f">
+    <label for="p" class="vh">Task for the robot</label>
+    <input id="p" autocomplete="off" placeholder="Tell the robot what to do, e.g. put the milk and the orange juice on the tray">
+    <button id="go" class="run-btn" type="submit">Run task</button>
+  </form>
+  <div class="history"><label for="hist">Runs</label><select id="hist"><option value="">No runs yet</option></select></div>
+  </div>
+  <div class="task-row">
+  <div class="examples" id="examples"></div>
+  <div class="opts">
+    <span>Robot</span><span class="seg" id="arms"></span>
+    <label>Motor memory <select id="forget"><option value="">Use every demo</option></select></label>
+    <label>Motion <select id="motion"></select></label>
+  </div>
+  </div>
+  <p class="msg-line" id="err" role="alert"></p>
+</section>
+
+<main class="board">
+  <section class="pane cam" aria-label="Robot camera">
+    <div class="pane-head"><h2>Robot camera</h2><span id="settings" class="settings"></span><span id="mode" class="mode">Starting scene</span></div>
+    <div class="screen"><img id="cam" alt="Robot camera view of the desk"></div>
+    <p id="caption" class="caption" aria-live="polite"></p>
+  </section>
+
+  <section class="pane brain" aria-label="Kiro brain">
+    <div class="pane-head"><span class="dot"></span><h2>Kiro decides what</h2><p class="sub" id="brain-sub">Its only tools are observe, run and done.</p></div>
+    <ol id="turns" class="turns"></ol>
+  </section>
+
+  <div class="pane right">
+    <section class="where" aria-label="Perception">
+      <div class="pane-head"><span class="dot"></span><h2>SAM 3 finds where</h2><p class="sub" id="where-sub"></p></div>
+      <div class="views">
+        <figure><div class="ph"><img id="front" alt="Front camera with numbered object marks" hidden><span>Marked front view</span></div><figcaption>Front camera</figcaption></figure>
+        <figure><div class="ph"><img id="wrist" alt="Wrist camera with numbered object marks" hidden><span>Marked wrist view</span></div><figcaption>Wrist camera</figcaption></figure>
+      </div>
+      <ul id="objects" class="objects"></ul>
+      <p class="fair"><strong>This is all Kiro gets:</strong> these two images and the list of marks. No simulator state, no success signal.</p>
+    </section>
+    <section class="how" aria-label="Motion source">
+      <div class="pane-head"><span class="dot"></span><h2>Human demos show how</h2></div>
+      <div class="clip-row"><div id="clip" class="clip" role="img" aria-label="Source demo"></div><div id="clip-text" class="clip-text"></div></div>
+    </section>
+  </div>
+</main>
+
+<footer class="timeline" aria-label="Timeline">
+  <div class="tl-left">
+    <button id="play" class="play" disabled>Replay</button>
+    <button id="tolive" class="live-btn" hidden>Back to live</button>
+    <span id="clock" class="clock"></span>
+  </div>
+  <div id="track" class="track" role="slider" aria-label="Timeline of skill calls" tabindex="0" aria-valuemin="0" aria-valuenow="0"></div>
+  <div class="tl-foot">
+    <div class="legend">
+      <span><i class="l-demo"></i>Copied from a human demo</span>
+      <span><i class="l-geo"></i>Computed from geometry</span>
+      <span><i class="l-fail"></i>Failed</span>
+      <span><i class="l-obs"></i>Kiro looked</span>
+    </div>
+    <div id="summary" class="summary"></div>
+  </div>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const STATUS = {OK: 'done', GRASP_FAILED: 'grasp missed', STALL: 'stalled', TIMEOUT: 'timed out',
+  IK_FAILURE: 'out of reach', COLLISION: 'collision', NO_CANDIDATE: 'no demo', PERCEPTION_FAILED: 'not seen',
+  NOT_HOLDING: 'not holding', BAD_ARGUMENT: 'bad mark', EPISODE_OVER: 'episode over', ERROR: 'error', SKIPPED: 'skipped'};
+const statusWord = s => STATUS[s] || (s || '').toLowerCase().replace(/_/g, ' ');
+const statusClass = s => s === 'OK' ? 'ok' : s === 'SKIPPED' ? 'skip' : s ? 'bad' : 'run';
+const FPS = 20;                       // recorded frames are every 2 sim steps at 20 Hz: 20 fps plays at 2x
+const S = {state: null, sel: null, view: null, viewKey: '', final: false, follow: true,
+           mode: 'scene', p: 0, playing: false, pin: null, clipN: {}, camBusy: false, lastCam: ''};
+
+async function getJSON(u) { const r = await fetch(u, {cache: 'no-store'}); if (!r.ok) throw new Error(r.status); return r.json(); }
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+/* ------------------------------------------------------------ top: facts, examples, history */
+function renderTop(s) {
+  const m = s.memory;
+  $('facts').innerHTML = (m ? `<div><dt>Motor memory</dt><dd>${m.motions.toLocaleString()} motions from ${m.demos.toLocaleString()} human demos</dd></div>` : '')
+    + `<div><dt>Robot</dt><dd>${esc(s.arm)} arm, simulated</dd></div><div><dt>Brain</dt><dd>Kiro, model ${esc(s.model)}</dd></div>`;
+  const ex = $('examples');
+  if (!ex.dataset.done) {
+    ex.innerHTML = '<span>Try</span>' + s.examples.map(e => `<button type="button" class="ex">${esc(e)}</button>`).join('');
+    ex.querySelectorAll('.ex').forEach(b => b.onclick = () => { $('p').value = b.textContent; $('p').focus(); });
+    $('p').title = s.about;
+    $('arms').innerHTML = s.arms.map(a => `<label><input type="radio" name="arm" value="${esc(a)}"${a === s.arm ? ' checked' : ''}><span>${esc(a)}</span></label>`).join('');
+    $('forget').innerHTML = '<option value="">Use every demo</option>' + s.items.map(i => `<option value="${esc(i)}">Forget the ${esc(i)} demos</option>`).join('');
+    $('motion').innerHTML = Object.entries(s.motions).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join('');
+    ex.dataset.done = 1;
+  }
+  $('go').disabled = s.running;
+  $('go').textContent = s.running ? 'Running…' : 'Run task';
+  const h = $('hist'), key = JSON.stringify(s.episodes.map(e => [e.name, e.running, e.skills_ok, e.skills]));
+  if (h.dataset.key !== key) {
+    h.innerHTML = s.episodes.length ? s.episodes.slice().reverse().map(e => {
+      const n = parseInt(e.name.replace('ep_', ''), 10) + 1;
+      const tail = e.running ? ' (running)' : e.skills ? ` (${e.skills_ok}/${e.skills} skills)` : '';
+      return `<option value="${esc(e.name)}">Run ${n}: ${esc(e.instruction.slice(0, 60))}${e.instruction.length > 60 ? '…' : ''}${tail}</option>`;
+    }).join('') : '<option value="">No runs yet</option>';
+    h.dataset.key = key;
+  }
+  if (S.sel) h.value = S.sel;
+}
+
+$('hist').onchange = e => { if (!e.target.value) return; S.follow = S.state && S.state.running && S.state.ep === e.target.value; select(e.target.value); };
+$('f').onsubmit = async e => {
+  e.preventDefault();
+  const p = $('p').value.trim();
+  if (!p) { $('err').textContent = 'Type a task first.'; return; }
+  $('go').disabled = true; $('err').textContent = '';
+  try {
+    const arm = (document.querySelector('input[name="arm"]:checked') || {}).value;
+    const r = await fetch('/run', {method: 'POST', body: JSON.stringify({prompt: p, arm, motion: $('motion').value, forget: $('forget').value})});
+    const j = await r.json();
+    if (!r.ok) { $('err').textContent = j.error === 'a run is already in progress' ? 'A run is already in progress. Wait for it to finish.' : j.error; $('go').disabled = false; return; }
+    S.follow = true; tickState();
+  } catch (err) { $('err').textContent = 'The demo server is not reachable. Is scripts/live.py still running?'; $('go').disabled = false; }
+};
+
+/* ------------------------------------------------------------ selecting a run */
+function select(name) {
+  if (S.sel === name) return;
+  S.sel = name; S.view = null; S.viewKey = ''; S.final = false; S.playing = false; S.pin = null; S.p = 0;
+  S.mode = S.state && S.state.running && S.state.ep === name ? 'live' : 'replay';
+  $('hist').value = name;
+  tickEpisode();
+}
+
+async function tickState() {
+  try {
+    const s = await getJSON('/state'); S.state = s; renderTop(s);
+    if (s.running && s.ep && S.follow && S.sel !== s.ep) select(s.ep);
+    if (!S.sel && !s.running && s.episodes.length && !S.initial) { S.initial = true; S.follow = false; select(s.episodes[s.episodes.length - 1].name); }
+    S.initial = true;
+    if (S.mode === 'live' && !(s.running && s.ep === S.sel)) tickEpisode();
+    if (!S.view) renderCaption({});
+    renderMode();
+  } catch (e) { /* server restarting */ }
+}
+
+async function tickEpisode() {
+  if (!S.sel || S.final) return;
+  const name = S.sel;
+  try {
+    const v = await getJSON('/episode?ep=' + encodeURIComponent(name));
+    if (name !== S.sel) return;
+    const key = JSON.stringify(v);
+    if (key === S.viewKey) return;
+    S.viewKey = key; S.view = v;
+    if (v.phase === 'done' || v.phase === 'stopped') {
+      S.final = true;
+      if (S.mode !== 'replay' || !S.p) { S.mode = 'replay'; S.p = Math.max(0, v.n_frames - 1); }
+    }
+    renderEpisode();
+  } catch (e) { /* half-written files: try again next tick */ }
+}
+
+/* ------------------------------------------------------------ focus: what the playhead points at */
+function focus() {
+  const v = S.view;
+  if (!v) return {};
+  const runs = {}; v.turns.forEach(t => { if (t.run) runs[t.run] = t; });
+  if (v.pending && v.pending.run) runs[v.pending.run] = v.pending;
+  if (S.pin) {
+    const t = v.turns.find(t => t.i === S.pin) || (v.pending && v.pending.i === S.pin ? v.pending : null);
+    if (t) return {turn: t, call: t.calls && t.calls.length ? v.calls[t.calls[0].k] : null, seen: t.tool === 'observe' ? t.i : t.saw, ownView: t.tool === 'observe'};
+  }
+  if (S.mode === 'replay') {
+    const p = S.p;
+    let call = v.calls.find(c => p >= c.first && p <= c.last);
+    let between = false;
+    if (!call) { const before = v.calls.filter(c => c.last < p); call = before[before.length - 1] || null; between = true; }
+    const turn = call ? runs[call.run] : (runs[1] || v.turns[0]);
+    return {call, turn, between, seen: turn ? turn.saw : null};
+  }
+  const turn = v.pending || v.turns[v.turns.length - 1];
+  const lastSeen = [...v.turns].reverse().find(t => t.images);
+  return {turn, call: v.calls[v.calls.length - 1] || null, seen: lastSeen ? lastSeen.i : null, latest: true};
+}
+
+/* ------------------------------------------------------------ brain pane */
+const WHAT = {observe: 'Looked at the desk', run: 'Ran a program', done: 'Finished'};
+function brainBlock(b) {
+  let h = '';
+  (b.say || []).forEach(s => h += `<p class="say">${esc(s)}</p>`);
+  if (b.plan && b.plan.length) h += `<p class="plan-title">Plan</p><ol class="plan">${b.plan.map(p => `<li>${esc(p)}</li>`).join('')}</ol>`;
+  if (b.thought) h += `<p class="thought">${esc(b.thought)}</p>`;
+  return h;
+}
+function stepsHTML(steps, calls) {
+  let j = 0;
+  return `<ol class="program">${steps.map(s => {
+    const c = s.status !== 'SKIPPED' && s.status !== 'EPISODE_OVER' ? calls[j++] : null;
+    const src = c ? `<span class="tag ${c.source.kind}">${c.source.kind === 'demo' ? 'human demo' : 'geometry'}</span>` : '';
+    return `<li class="step"><code>${esc(s.call)}</code><span class="lbl">${esc(s.label)}${src}</span>`
+      + `<span class="st ${statusClass(s.status)}">${esc(statusWord(s.status))}</span>`
+      + (s.message && s.status !== 'SKIPPED' ? `<span class="msg">${esc(s.message)}</span>` : '') + '</li>';
+  }).join('')}</ol>`;
+}
+function turnHTML(t, pending) {
+  let h = `<div class="turn-head"><span class="n">${t.i}</span><span class="what">${pending ? ({observe: 'Looking at the desk', run: 'Running a program', done: 'Finishing'}[t.tool] || 'Working') : (WHAT[t.tool] || t.tool)}</span>`
+    + `<span class="dt">${t.dt != null ? t.dt.toFixed(1) + ' s' : ''}</span></div>` + brainBlock(t.brain || {});
+  if (t.tool === 'observe' && t.find) h += `<div class="finds">Looked for ${t.find.map(f => `<span class="chip">${esc(f)}</span>`).join('')}${t.objects ? ` and found ${t.objects.length} marks` : ''}</div>`;
+  if (t.error) h += `<div class="error-box">The program did not parse: ${esc(t.error)}. Nothing ran.</div>`;
+  if (t.steps) h += stepsHTML(t.steps, t.calls || []);
+  if (pending && t.tool === 'run') {
+    const done = (t.calls || []);
+    h += done.length ? stepsHTML(done.map(c => ({call: c.call, label: c.label, status: c.status, message: ''})), done) : '';
+    h += `<p class="thinking">Robot is moving…</p>`;
+  }
+  if (t.summary) h += `<p class="final">${esc(t.summary)}</p>`;
+  return h;
+}
+function renderTurns() {
+  const v = S.view, ol = $('turns');
+  if (!v || (!v.turns.length && !v.pending)) {
+    ol.innerHTML = v ? `<li class="empty">${v.phase === 'starting' ? 'Starting the simulator and Kiro. The first turn shows up in a few seconds.' : 'Kiro has not called a tool yet.'}</li>`
+      : `<li class="empty">Kiro's turns appear here: what it reads in the images, the program it writes, and how each step went.</li>`;
+    return;
+  }
+  let h = v.turns.map(t => `<li class="turn" data-i="${t.i}">${turnHTML(t, false)}</li>`).join('');
+  if (v.pending) h += `<li class="turn pending" data-i="${v.pending.i}">${turnHTML(v.pending, true)}</li>`;
+  else if (v.phase === 'thinking') h += `<li class="turn pending"><p class="thinking">Kiro is deciding the next step…</p></li>`;
+  if (v.final && (v.phase === 'done' || v.phase === 'stopped')) h += `<li class="turn final-turn"><p class="final">${esc(v.final)}</p></li>`;
+  const atBottom = ol.scrollHeight - ol.scrollTop - ol.clientHeight < 40;
+  ol.innerHTML = h;
+  ol.querySelectorAll('.turn-head').forEach(el => el.onclick = () => pinTurn(parseInt(el.parentElement.dataset.i, 10)));
+  if (S.mode === 'live' || atBottom) ol.scrollTop = ol.scrollHeight;
+}
+function pinTurn(i) {
+  const v = S.view; if (!v) return;
+  const t = v.turns.find(t => t.i === i);
+  if (t && t.calls && t.calls.length && S.final) { S.pin = null; seek(v.calls[t.calls[0].k].first); return; }
+  S.pin = S.pin === i ? null : i; renderFocus();
+}
+
+/* ------------------------------------------------------------ where + how panes */
+function renderWhere(f) {
+  const v = S.view, t = v && f.seen ? v.turns.find(t => t.i === f.seen) : null;
+  const sub = !t ? '' : f.latest ? `Latest view Kiro was given (turn ${t.i})` : f.ownView ? `What Kiro saw at turn ${t.i}` : `What Kiro saw before turn ${f.turn ? f.turn.i : ''}`;
+  $('where-sub').textContent = sub;
+  for (const [id, key] of [['front', 'front'], ['wrist', 'wrist']]) {
+    const img = $(id), src = t && t.images ? t.images[key] : '';
+    if (!src) { img.hidden = true; img.removeAttribute('src'); continue; }
+    if (img.getAttribute('src') !== src) img.src = src;
+    img.hidden = false;
+  }
+  const ul = $('objects');
+  const key = t ? t.i : 'none';
+  if (ul.dataset.key === String(key)) return;
+  ul.dataset.key = key;
+  ul.innerHTML = t && t.objects ? t.objects.map(o => `<li title="x=${o.x} y=${o.y} z=${o.z} cm, size ${esc(o.size)} cm${o.score != null ? ', score ' + o.score : ''}"><b>${o.mark}</b>${esc(o.label)}</li>`).join('')
+    + (t.notes || []).filter(n => !/^gripper/.test(n)).map(n => `<li class="notes">${esc(n)}</li>`).join('')
+    : `<li class="notes">The numbered marks SAM 3 puts on each object appear here once Kiro looks.</li>`;
+}
+
+function clipFrames(url, cb) {
+  if (S.clipN[url] !== undefined) return cb(S.clipN[url]);
+  const im = new Image();
+  im.onload = () => { S.clipN[url] = Math.max(1, Math.round(im.naturalWidth / im.naturalHeight)); cb(S.clipN[url]); };
+  im.onerror = () => { S.clipN[url] = 0; cb(0); };
+  im.src = url;
+}
+function renderHow(f) {
+  const el = $('clip'), txt = $('clip-text'), c = f.call;
+  if (!c) {
+    el.className = 'clip'; el.style.backgroundImage = ''; el.innerHTML = '';
+    txt.innerHTML = `<p class="meta">Every motion shows the human demo it was copied from. Demos are stored as gripper poses relative to the object, so one demo works for any layout.</p>`;
+    el.dataset.seg = ''; return;
+  }
+  const lead = S.mode === 'replay' ? (f.between ? 'Last motion' : 'Now') : 'Latest motion';
+  const src = c.source;
+  if (src.kind !== 'demo') {
+    el.className = 'clip geometry'; el.style.backgroundImage = ''; el.innerHTML = '<span>No demo used</span>'; el.dataset.seg = '';
+    txt.innerHTML = `<p class="meta">${lead}: <strong>${esc(c.label)}</strong> (${esc(statusWord(c.status))})</p>`
+      + `<p class="kind geometry">Computed from geometry</p><p class="meta">No stored demo fit this object and pose, so the motion was planned from the object's point cloud.</p>`;
+    return;
+  }
+  const url = '/demo?seg=' + encodeURIComponent(src.id);
+  txt.innerHTML = `<p class="meta">${lead}: <strong>${esc(c.label)}</strong> (${esc(statusWord(c.status))})</p>`
+    + `<p class="kind demo">Copied from a human demo</p><p class="task-q">“${esc(src.task)}”</p>`
+    + `<p class="meta">${esc(src.suite)}${src.scene ? ', ' + esc(src.scene) : ''}, demo ${esc(src.demo)}, ${esc(src.segment)} segment. Its gripper path is re-anchored on the live object.</p>`;
+  if (el.dataset.seg !== src.id) {
+    el.dataset.seg = src.id; delete el.dataset.n; el.className = 'clip demo'; el.innerHTML = '';
+    el.style.backgroundImage = `url("${url}")`;
+    clipFrames(url, n => { if (el.dataset.seg === src.id) { el.dataset.n = n; el.style.backgroundSize = `${n * 100}% 100%`; clipStep(); } });
+  }
+  clipStep();
+}
+function clipStep() {
+  const el = $('clip'), n = parseInt(el.dataset.n || '0', 10);
+  if (!el.dataset.seg || !n) return;
+  let k;
+  const c = S.view && S.view.calls.find(c => c.source.id === el.dataset.seg && S.p >= c.first && S.p <= c.last);
+  if (S.mode === 'replay' && c && !S.pin) k = Math.round((n - 1) * (S.p - c.first) / Math.max(1, c.last - c.first));
+  else k = Math.floor(performance.now() / 100) % n;           // loop at ~10 fps
+  el.style.backgroundPosition = `${n > 1 ? (k / (n - 1)) * 100 : 0}% 0`;
+}
+
+/* ------------------------------------------------------------ timeline */
+function renderTrack() {
+  const v = S.view, tr = $('track');
+  if (!v || !v.calls.length) {
+    tr.innerHTML = `<div class="empty">${v ? 'Skill calls line up here as the robot moves.' : 'Run a task to see its skill calls on a timeline.'}</div><div class="head" id="head" hidden></div>`;
+    return;
+  }
+  const n = Math.max(1, v.n_frames - 1, ...v.calls.map(c => c.last));
+  const pct = x => `${(100 * x / n).toFixed(3)}%`;
+  let h = '';
+  const runs = {};
+  v.calls.forEach(c => { const r = runs[c.run] || (runs[c.run] = {first: c.first, last: c.last}); r.first = Math.min(r.first, c.first); r.last = Math.max(r.last, c.last); });
+  const turnOfRun = {}; v.turns.forEach(t => { if (t.run) turnOfRun[t.run] = t.i; });
+  if (v.pending && v.pending.run) turnOfRun[v.pending.run] = v.pending.i;
+  for (const [r, s] of Object.entries(runs)) h += `<div class="run-mark" data-f="${s.first}" style="left:${pct(s.first)};width:${pct(Math.max(1, s.last - s.first))}" title="Program from Kiro turn ${turnOfRun[r] || ''}">turn ${turnOfRun[r] || ''}</div>`;
+  v.calls.forEach(c => {
+    const failed = c.status && c.status !== 'OK';
+    h += `<button class="blk ${c.source.kind}${failed ? ' failed' : ''}" data-k="${c.k}" data-f="${c.first}" style="left:${pct(c.first)};width:calc(${pct(Math.max(1, c.last - c.first))} - 2px)" `
+      + `title="${esc(c.label)}: ${esc(statusWord(c.status))}, ${c.source.kind === 'demo' ? 'copied from a human demo' : 'computed from geometry'}" tabindex="-1">${esc(c.label)}</button>`;
+  });
+  let lastF = 0;
+  v.turns.forEach(t => {
+    if (t.calls && t.calls.length) lastF = Math.max(lastF, ...t.calls.map(c => c.last));
+    if (t.tool === 'observe') h += `<span class="obs-mark" data-f="${lastF}" style="left:${pct(lastF)}" title="Turn ${t.i}: Kiro looked again"></span>`;
+  });
+  h += `<div class="head" id="head"></div>`;
+  tr.innerHTML = h;
+  tr.dataset.n = n;
+}
+function renderHead() {
+  const head = $('head'), tr = $('track'), n = parseFloat(tr.dataset.n || '1');
+  if (!head || !S.view) return;
+  const p = S.mode === 'replay' ? S.p : n;
+  head.hidden = !S.view.calls.length; head.style.left = `${Math.min(100, 100 * p / n)}%`;
+  tr.setAttribute('aria-valuemax', n); tr.setAttribute('aria-valuenow', Math.round(p));
+  $('clock').textContent = S.mode === 'replay' ? `${fmtTime(S.p / 10)} of ${fmtTime(n / 10)}` : `${fmtTime(n / 10)} sim time`;
+}
+function seek(p) {
+  const v = S.view; if (!v || !v.n_frames) return;
+  S.p = Math.max(0, Math.min(v.n_frames - 1, Math.round(p))); S.mode = 'replay'; S.pin = null;
+  renderFocus(); renderMode();
+}
+function trackSeek(e) {
+  const tr = $('track'), r = tr.getBoundingClientRect(), n = parseFloat(tr.dataset.n || '0');
+  if (!n) return;
+  S.playing = false; seek(((e.clientX - r.left) / r.width) * n);
+}
+$('track').addEventListener('pointerdown', e => { trackSeek(e); $('track').setPointerCapture(e.pointerId); $('track').onpointermove = trackSeek; });
+$('track').addEventListener('pointerup', () => { $('track').onpointermove = null; });
+$('track').addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); S.playing = false; seek(S.p + (e.key === 'ArrowRight' ? 10 : -10)); }
+});
+$('play').onclick = () => {
+  const v = S.view; if (!v || !v.n_frames) return;
+  if (S.mode !== 'replay') { S.mode = 'replay'; S.p = 0; }
+  if (!S.playing && S.p >= v.n_frames - 1) S.p = 0;
+  S.playing = !S.playing; S.pin = null; renderMode();
+};
+$('tolive').onclick = () => { S.mode = 'live'; S.playing = false; S.pin = null; renderFocus(); renderMode(); };
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, select, textarea')) return;
+  if (e.key === ' ' && S.view && S.view.n_frames) { e.preventDefault(); $('play').click(); }
+});
+
+/* ------------------------------------------------------------ camera + caption + summary */
+function camSrc() {
+  if (!S.view) return S.sel ? '' : 'scene.jpg';
+  if (S.mode === 'replay' && S.view.n_frames) return `${S.view.name}/rec/${String(S.p).padStart(6, '0')}.jpg`;
+  return `${S.view.name}/latest.jpg?t=${Date.now()}`;
+}
+function camTick() {
+  const want = camSrc();
+  if (!want || S.camBusy || (want === S.lastCam && !want.includes('?t='))) return;
+  S.camBusy = true;
+  const im = new Image();
+  im.onload = () => { $('cam').src = im.src; S.lastCam = want; S.camBusy = false; };
+  im.onerror = () => { S.camBusy = false; if (S.mode !== 'live') S.lastCam = want; };
+  im.src = want;
+}
+function renderCaption(f) {
+  const v = S.view, cap = $('caption');
+  if (!v) { cap.innerHTML = `Every run starts from this desk<small>${esc(S.state ? S.state.about : '')}</small>`; return; }
+  const el = S.state && S.state.running && S.state.ep === v.name ? S.state.elapsed : null;
+  if (S.mode === 'live') {
+    const p = v.pending, done = p && p.calls ? p.calls.length : 0;
+    const phase = {starting: 'Starting the simulator and Kiro', thinking: 'Kiro is deciding the next step',
+      looking: 'SAM 3 is marking the objects Kiro asked for',
+      moving: `Running Kiro's program${done ? `, ${done} step${done > 1 ? 's' : ''} finished` : ''}`, finishing: 'Kiro is wrapping up'}[v.phase] || 'Working';
+    cap.innerHTML = `${esc(phase)}<small>“${esc(v.instruction)}”</small>`;
+    return;
+  }
+  const c = f.call;
+  if (!c) { cap.innerHTML = `Before the first motion<small>“${esc(v.instruction)}”</small>`; return; }
+  const how = c.source.kind === 'demo' ? 'copied from a human demo' : 'computed from geometry';
+  cap.innerHTML = f.between ? `Between motions<small>Kiro is looking or thinking here. “${esc(v.instruction)}”</small>`
+    : `${esc(c.label[0].toUpperCase() + c.label.slice(1))}, ${how}<small>Step of Kiro's turn ${f.turn ? f.turn.i : ''} program, result: ${esc(statusWord(c.status))}. Task: “${esc(v.instruction)}”</small>`;
+}
+function renderSummary() {
+  const v = S.view, el = $('summary');
+  if (!v || !v.summary) { el.innerHTML = v && S.mode === 'live' ? `<span>Kiro calls so far <b>${v.turns.length + (v.pending ? 1 : 0)}</b></span>${v.calls.length ? `<span>Skills done <b>${v.calls.filter(c => c.status === 'OK').length} of ${v.calls.length}</b></span>` : ''}` : ''; return; }
+  const s = v.summary;
+  const ep = S.state && S.state.episodes.find(e => e.name === v.name);
+  el.innerHTML = `<span>Took <b>${s.seconds} s</b></span><span>Kiro calls <b>${s.tool_calls}</b></span>`
+    + `<span>Skills done <b>${s.skills_ok} of ${s.skills}</b></span><span>From human demos <b>${s.from_demos}</b></span><span>From geometry <b>${s.from_geometry}</b></span>`
+    + (s.error ? `<span style="color:var(--bad)">Stopped: ${esc(s.error)}</span>` : '')
+    + (ep && ep.video ? `<a href="/video/${esc(v.name)}.mp4">Download video</a>` : '');
+}
+function renderMode() {
+  const v = S.view, m = $('mode'), running = S.state && S.state.running && S.sel && S.state.ep === S.sel;
+  if (!S.sel) { m.className = 'mode'; m.textContent = 'Starting scene'; }
+  else if (S.mode === 'live') { m.className = 'mode live'; m.textContent = `Live ${S.state ? fmtTime(S.state.elapsed) : ''}`; }
+  else { m.className = 'mode'; m.textContent = S.reveal ? 'Recorded run, 2x' : S.playing ? 'Replay at 2x' : 'Replay'; }
+  $('tolive').hidden = !(running && S.mode === 'replay');
+  const canPlay = v && v.n_frames > 1;
+  $('play').disabled = !canPlay;
+  $('play').textContent = S.playing ? 'Pause' : (S.mode === 'replay' && S.p > 0 && S.p < (v ? v.n_frames - 1 : 0)) ? 'Resume replay' : 'Replay run';
+  renderHead();
+  if (S.mode === 'live') renderCaption(focus());
+}
+let lastTurnKey = '';
+function renderFocus() {
+  if (!S.view) return;
+  const f = focus();
+  const key = f.turn ? f.turn.i : '';
+  document.querySelectorAll('.turn').forEach(li => li.classList.toggle('active', li.dataset.i === String(key) && S.mode === 'replay'));
+  if (S.mode === 'replay' && key !== lastTurnKey) {
+    const li = document.querySelector(`.turn[data-i="${key}"]`), ol = $('turns');
+    if (li) {                                     // scroll the turn list only, never the page
+      const top = li.offsetTop - ol.offsetTop;
+      if (top < ol.scrollTop || top + Math.min(li.offsetHeight, ol.clientHeight) > ol.scrollTop + ol.clientHeight) ol.scrollTop = top - 4;
+    }
+  }
+  lastTurnKey = key;
+  if (S.reveal && S.mode === 'replay') {          // ?reveal=1: turns appear as the replay reaches them
+    const end = S.p >= S.view.n_frames - 1;
+    document.querySelectorAll('#turns .turn').forEach(li => {
+      li.hidden = li.classList.contains('final-turn') ? !end : !end && parseInt(li.dataset.i, 10) > key;
+    });
+    $('turns').scrollTop = $('turns').scrollHeight;
+    document.querySelectorAll('#track [data-f]').forEach(el => { el.hidden = !end && +el.dataset.f > S.p; });
+    $('summary').hidden = !end;
+  }
+  renderWhere(f); renderHow(f); renderCaption(f); renderHead();
+}
+function renderSettings() {
+  const v = S.view, el = $('settings');
+  if (!v) { el.innerHTML = S.state ? `<b>${esc(S.state.arm)}</b> arm` : ''; return; }
+  const motion = S.state && S.state.motions ? S.state.motions[v.motion] : v.motion;
+  el.innerHTML = `<b>${esc(v.arm)}</b> arm, ${v.motion === 'hybrid' ? 'every demo' : `<span class="warn">${esc(motion)}</span>`}`
+    + (v.forget && v.forget.length ? `, <span class="warn">forgot the ${esc(v.forget.join(', '))} demos</span>` : '');
+}
+function renderEpisode() {
+  const v = S.view;
+  if (S.reveal) $('p').value = v.instruction;
+  renderSettings();
+  $('brain-sub').textContent = 'Headless kiro-cli. Its only tools are observe, run and done.';
+  renderTurns(); renderTrack(); renderSummary(); renderFocus(); renderMode();
+}
+
+/* ------------------------------------------------------------ loops */
+let lastT = performance.now();
+function frameLoop(now) {
+  if (S.playing && S.view) {
+    const adv = Math.floor((now - lastT) * FPS / 1000);
+    if (adv > 0) {
+      lastT += adv * 1000 / FPS;
+      S.p = Math.min(S.view.n_frames - 1, S.p + adv);
+      if (S.p >= S.view.n_frames - 1) S.playing = false;
+      renderFocus(); renderMode();
+    }
+  } else lastT = now;
+  clipStep();
+  requestAnimationFrame(frameLoop);
+}
+requestAnimationFrame(frameLoop);
+setInterval(camTick, 110);
+setInterval(tickState, 700);
+setInterval(() => { if (S.mode === 'live' || !S.final) tickEpisode(); }, 800);
+renderTurns(); renderTrack(); renderHow({}); renderCaption({}); renderWhere({});
+// deep link for recording: ?ep=ep_002&t=120&play=1 opens that run at frame 120 (and plays it)
+const Q = new URLSearchParams(location.search);
+if (Q.get('theme')) document.documentElement.dataset.theme = Q.get('theme');   // ?theme=dark|light
+S.reveal = !!Q.get('reveal');
+// video/scripts/capture.mjs films a replay frame by frame: await __frame(k) shows frame k with every image decoded
+window.__frame = async k => {
+  S.playing = false; seek(k);
+  const cam = $('cam'), want = camSrc();
+  if (cam.getAttribute('src') !== want) { cam.src = want; S.lastCam = want; }
+  const clip = $('clip');
+  for (let n = 0; clip.dataset.seg && !clip.dataset.n && n < 200; n++) await new Promise(r => setTimeout(r, 20));
+  clipStep();
+  await Promise.all([...document.querySelectorAll('img')].filter(i => !i.hidden && i.getAttribute('src'))
+    .map(i => i.decode().catch(() => {})));
+  return S.view.n_frames;
+};
+if (Q.get('ep')) {
+  S.initial = true; S.follow = false; select(Q.get('ep'));
+  const wait = setInterval(() => {
+    if (!S.final) return;
+    clearInterval(wait);
+    if (Q.get('t')) seek(parseInt(Q.get('t'), 10));
+    if (Q.get('play')) $('play').click();
+  }, 100);
+}
+tickState();
+</script>
+</body>
+</html>
