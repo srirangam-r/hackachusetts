@@ -36,7 +36,7 @@ LAYOUTS = [  # (caddy xy, caddy yaw, tray xy, SMALL_SLOTS index for each of MOVA
 ]
 
 TASKS = [
-    ("put both books in the desk caddy and all the mugs on the wooden tray",
+    ("sort the desk: books in the caddy, mugs on the tray",
      ["black_book_1", "yellow_book_1", "porcelain_mug_1", "red_coffee_mug_1", "white_yellow_mug_1"],
      [("In", "black_book_1", "desk_caddy_1_back_contain_region"),
       ("In", "yellow_book_1", "desk_caddy_1_front_contain_region"),
@@ -134,6 +134,23 @@ def generate_bddls(force: bool = False) -> list[Path]:
     finally:
         tgu.TASK_INFO.clear()
         tgu.TASK_INFO.update(saved)
+    return out
+
+
+BOOKS = ["black_book", "yellow_book"]
+MUGS = ["porcelain_mug", "red_coffee_mug", "white_yellow_mug"]
+CADDY_REGIONS = [f"desk_caddy_1_{s}_contain_region" for s in ("back", "front", "left", "right")]
+
+
+def object_status(env) -> dict[str, bool]:
+    """Per-object sort status (runner/diagnostics only, never shown to the brain): each book in any caddy
+    compartment, each mug in the wooden tray's contain region. Uses LIBERO's own ``in`` predicate."""
+    from libero.libero.envs.predicates import eval_predicate_fn
+
+    states = env._rs.object_states_dict
+    out = {b: any(eval_predicate_fn("in", states[f"{b}_1"], states[r]) for r in CADDY_REGIONS) for b in BOOKS}
+    out.update({m: bool(eval_predicate_fn("in", states[f"{m}_1"], states["wooden_tray_1_contain_region"]))
+                for m in MUGS})
     return out
 
 

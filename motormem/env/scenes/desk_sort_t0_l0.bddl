@@ -1,6 +1,6 @@
 (define (problem LIBERO_Study_Tabletop_Manipulation)
   (:domain robosuite)
-  (:language put both books in the desk caddy and all the mugs on the wooden tray)
+  (:language sort the desk: books in the caddy, mugs on the tray)
     (:regions
       (desk_caddy_init_region
           (:target study_table)

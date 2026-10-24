@@ -55,7 +55,7 @@ def test_desk_sort_layout_objects_on_table(layout):
     env = make_env(EpisodeSpec(suite="desk_sort", task_id=0, init_index=layout, arm=arm))
     try:
         env.reset()
-        assert env.instruction.startswith("put both books in the desk caddy")
+        assert env.instruction == "sort the desk: books in the caddy, mugs on the tray"
         poses = env.privileged_object_poses()
         names = [f"{n}_1" for n in desk_sort.OBJECTS]
         assert set(names) <= set(poses) and 6 <= len(names) <= 10
