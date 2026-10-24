@@ -20,6 +20,7 @@ KNOB_STEP = 0.1       # rad per wrist increment
 KNOB_MAX = 1.6        # rad
 KNOB_OK = 0.9         # rad: a slip after this much rotation still counts as a completed turn
 HANDLE_MAX_WIDTH = 0.12  # m: wider parts are panels (drawer fronts, doors); look for their handle
+CONTACT_MAX_DIST = 0.04  # m: an index contact pose farther than this from every part point misses the part
 NOISE_FLOOR = 5e-4    # m; residual floor for the BIC (sensor/compliance noise)
 LINE_RADIUS = 1.0     # circles with larger radius are treated as lines
 ACTIONS = ("open", "close", "turn_on", "turn_off")
@@ -108,10 +109,16 @@ def _face_normal(sk, part: ObjectEstimate) -> np.ndarray:
 def _contact_from_index(sk, part: ObjectEstimate, action: str):
     if not sk._use_index():
         return None
+    P = np.asarray(part.points_world, float)
     for seg in sk._query(SegmentKind.ACTUATE, part, relation=action):
         for plan in sk._segment_plans(seg, part, close=True):
             # keep approach + grasp only: drop the lift appended by _segment_plans and the demo motion
             body = plan.targets[: plan.event + 1]
+            # A demo registered onto a part much smaller than the demo's object (a knob vs the whole stove,
+            # a handle vs the cabinet) can put the contact far from the part: only accept contacts that
+            # touch the measured part.
+            if float(np.min(np.linalg.norm(P - body[-1, :3, 3], axis=1))) > CONTACT_MAX_DIST:
+                continue
             return plan, body
     return None
 

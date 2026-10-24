@@ -52,3 +52,21 @@ tight-tolerance insertion not implemented.
 ## Status log
 - (setup) venv + deps installed, tests green (101 non-sim + runner tests), libero_goal/spatial indexes built.
 - (next) run author-matching goal_panda eval on current code to get our baseline numbers.
+
+## UPDATE: SAM 3 enabled (gated access + token), scripted baseline
+SAM 3 blocker was purely gated HF access + weights download — NO code change needed.
+After `hf` auth (account srirangamrh, org robotics-course) + snapshot_download facebook/sam3
+(~6.9 GB cached), `make_segmenter("auto")` loads Sam3Segmenter. GPU fits at --parallel 1 (8 GB).
+
+Scripted diagnostic (no brain/API), libero_goal, Panda, 10 tasks x 3:
+- fallback (GDINO+SAM2.1): 10/30 (33%)
+- SAM 3:                   21/30 (70%)  ~ matches author prepivot_Panda 19/30 (63%)
+Perception-gated tasks recovered with SAM3: cream cheese 0->3/3, wine rack 0->2/3,
+middle drawer 0->3/3, bowl->plate 2->3/3, open-top-drawer 0->2/3.
+Remaining weak even with SAM3: task 5 push-plate->stove 0/3, task 4 bowl->cabinet 1/3
+(genuine contact-skill issues, the README pivot area).
+
+Setup-vs-code verdict:
+- perception low numbers  = SETUP (SAM3 access), fixed, no code change
+- push double-rotation    = MAIN CODE bug (fixed in backend.py; latent since base yaw=0)
+- OOM / scripted crash     = SETUP (8 GB GPU -> --parallel 1)

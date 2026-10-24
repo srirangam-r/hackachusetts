@@ -404,7 +404,7 @@ class RealBackend:
       and `describe(...)` if stream B provides it (else `describe_marks` here);
       `OraclePerception(env, memory)` when spec.perception == "oracle" (rung-0 only).
     - `motormem.skills.Skills(env, perception, memory, motion_source)`:
-      `.pick(est)`, `.place(est, relation)`, `.push(est, dx_world, dy_world)`,
+      `.pick(est)`, `.place(est, relation)`, `.push(est, dx_base, dy_base)`,
       `.actuate(est, action)`, `.home()` -> `SkillResult`.
     Marks resolve to the `ObjectEstimate`s of the last observe. Untested until integration.
     """
@@ -492,8 +492,10 @@ class RealBackend:
         if call.name == "actuate":
             return self.skills.actuate(est, call.args[1])
         if call.name == "push":
-            d = self.obs.T_world_base[:3, :3] @ np.array([call.args[1], call.args[2], 0.0])
-            return self.skills.push(est, float(d[0]), float(d[1]))
+            # dx, dy are base-frame (robot protocol); Skills._push converts base->world itself,
+            # so pass them straight through. (Previously this pre-rotated base->world and _push
+            # rotated again -> a double rotation; inert only while T_world_base is identity.)
+            return self.skills.push(est, float(call.args[1]), float(call.args[2]))
         if call.name == "look":
             from motormem.types import SkillResult
             self.obs = self.env.observe()
