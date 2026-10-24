@@ -1,0 +1,10 @@
+{
+  "name": "goal_ur5e",
+  "episodes": 50,
+  "success": 30,
+  "rate": 0.6,
+  "mean_tool_calls": 3.32,
+  "mean_brain_s": 23.281972250938416,
+  "index_motions": 72,
+  "primitive_motions": 28
+}

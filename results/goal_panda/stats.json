@@ -1,0 +1,10 @@
+{
+  "name": "goal_panda",
+  "episodes": 50,
+  "success": 33,
+  "rate": 0.66,
+  "mean_tool_calls": 3.82,
+  "mean_brain_s": 23.583042826652527,
+  "index_motions": 88,
+  "primitive_motions": 20
+}

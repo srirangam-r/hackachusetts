@@ -1,0 +1,10 @@
+{
+  "name": "pilot3_goal_panda",
+  "episodes": 20,
+  "success": 13,
+  "rate": 0.65,
+  "mean_tool_calls": 4.15,
+  "mean_brain_s": 23.71828285455704,
+  "index_motions": 25,
+  "primitive_motions": 23
+}

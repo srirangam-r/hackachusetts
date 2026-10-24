@@ -19,6 +19,7 @@ MAX_TRAVEL = 0.30     # m
 KNOB_STEP = 0.1       # rad per wrist increment
 KNOB_MAX = 1.6        # rad
 KNOB_OK = 0.9         # rad: a slip after this much rotation still counts as a completed turn
+HANDLE_MAX_WIDTH = 0.12  # m: wider parts are panels (drawer fronts, doors); look for their handle
 NOISE_FLOOR = 5e-4    # m; residual floor for the BIC (sensor/compliance noise)
 LINE_RADIUS = 1.0     # circles with larger radius are treated as lines
 ACTIONS = ("open", "close", "turn_on", "turn_off")
@@ -165,12 +166,48 @@ def _retreat(sk, away: np.ndarray) -> None:
     sk.ctrl.track(densify([T, back, up], 0.02, 0.1), -1.0)
 
 
+def _locate_handle(sk, part: ObjectEstimate) -> ObjectEstimate:
+    """If `part` is a whole panel (drawer front, door) rather than its handle, find the handle inside it.
+
+    Generic rule, no task knowledge: a part wider than HANDLE_MAX_WIDTH is re-segmented with handle/knob
+    prompts and the candidate whose 3-D centroid lies within the panel's extent (closest to its centre) is used.
+    Falls back to the panel itself if nothing is found.
+    """
+    if sk.perception is None or getattr(sk.perception, "segmenter", None) is None:
+        return part
+    if max(part.extent[0], part.extent[1]) <= HANDLE_MAX_WIDTH:
+        return part
+    word = part.label.split()[-1] if part.label else "drawer"
+    prompts = [f"{word} handle", "handle", "knob"]
+    try:
+        cands = sk.perception.scan(sk.ctrl.refresh(), prompts, camera=part.camera)
+    except Exception:
+        return part
+    T_inv = g.inv(part.T_world_obj)
+    half = part.extent / 2 + 0.02
+    best, best_d = None, np.inf
+    for c in cands:
+        if max(c.extent[0], c.extent[1]) > HANDLE_MAX_WIDTH:
+            continue
+        p = g.transform_points(T_inv, c.T_world_obj[:3, 3][None])[0]
+        if np.all(np.abs(p) <= half):
+            d = float(np.linalg.norm(p))
+            if d < best_d:
+                best, best_d = c, d
+    if best is None:
+        return part
+    best.mark = part.mark
+    return best
+
+
 def actuate(sk, part: ObjectEstimate, action: str) -> SkillResult:
     if action not in ACTIONS:
         return SkillResult(Status.BAD_ARGUMENT, f"actuate: action must be one of {ACTIONS}")
     if part.points_world is None or len(part.points_world) < 20:
         return SkillResult(Status.PERCEPTION_FAILED, f"actuate: too few points on mark {part.mark}")
     knob = action in ("turn_on", "turn_off")
+    if not knob:
+        part = _locate_handle(sk, part)
     seg_id, fallback = None, True
     idx = _contact_from_index(sk, part, action)
     grasp = action != "close"

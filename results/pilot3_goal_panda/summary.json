@@ -1,0 +1,812 @@
+{
+  "name": "pilot3_goal_panda",
+  "scripted": false,
+  "args": {
+    "suite": "libero_goal",
+    "tasks": "0-9",
+    "episodes": 2,
+    "arm": "Panda",
+    "model": "auto",
+    "parallel": 5,
+    "name": "pilot3_goal_panda",
+    "backend": "real",
+    "motion_source": "hybrid",
+    "perception": "sam3",
+    "index_path": "data/index/libero_goal.pkl",
+    "max_steps": 900,
+    "timeout": 420.0,
+    "scripted": false,
+    "runs_dir": "/home/nail/stuff/sundai/hackachusetts/runs",
+    "keep_sessions": false
+  },
+  "overall": {
+    "n": 20,
+    "successes": 13,
+    "success_rate": 0.65,
+    "mean_wall_s": 36.2735,
+    "mean_tool_calls": 4.15,
+    "timeouts": 0
+  },
+  "per_task": {
+    "0": {
+      "instruction": "open the middle drawer of the cabinet",
+      "n": 2,
+      "successes": 2,
+      "success_rate": 1.0,
+      "mean_wall_s": 38.69,
+      "mean_tool_calls": 4.0
+    },
+    "1": {
+      "instruction": "put the bowl on the stove",
+      "n": 2,
+      "successes": 2,
+      "success_rate": 1.0,
+      "mean_wall_s": 28.335,
+      "mean_tool_calls": 2.0
+    },
+    "2": {
+      "instruction": "put the wine bottle on top of the cabinet",
+      "n": 2,
+      "successes": 2,
+      "success_rate": 1.0,
+      "mean_wall_s": 25.335,
+      "mean_tool_calls": 2.0
+    },
+    "3": {
+      "instruction": "open the top drawer and put the bowl inside",
+      "n": 2,
+      "successes": 1,
+      "success_rate": 0.5,
+      "mean_wall_s": 56.105,
+      "mean_tool_calls": 7.5
+    },
+    "4": {
+      "instruction": "put the bowl on top of the cabinet",
+      "n": 2,
+      "successes": 1,
+      "success_rate": 0.5,
+      "mean_wall_s": 24.560000000000002,
+      "mean_tool_calls": 2.5
+    },
+    "5": {
+      "instruction": "push the plate to the front of the stove",
+      "n": 2,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_wall_s": 56.765,
+      "mean_tool_calls": 6.0
+    },
+    "6": {
+      "instruction": "put the cream cheese in the bowl",
+      "n": 2,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_wall_s": 55.675,
+      "mean_tool_calls": 8.0
+    },
+    "7": {
+      "instruction": "turn on the stove",
+      "n": 2,
+      "successes": 2,
+      "success_rate": 1.0,
+      "mean_wall_s": 17.615,
+      "mean_tool_calls": 2.0
+    },
+    "8": {
+      "instruction": "put the bowl on the plate",
+      "n": 2,
+      "successes": 2,
+      "success_rate": 1.0,
+      "mean_wall_s": 20.675,
+      "mean_tool_calls": 2.0
+    },
+    "9": {
+      "instruction": "put the wine bottle on the rack",
+      "n": 2,
+      "successes": 1,
+      "success_rate": 0.5,
+      "mean_wall_s": 38.98,
+      "mean_tool_calls": 5.5
+    }
+  },
+  "episodes": [
+    {
+      "episode": "ep_000",
+      "task_id": 0,
+      "init_index": 0,
+      "instruction": "open the middle drawer of the cabinet",
+      "model": "auto",
+      "tool_calls": 5,
+      "tool_counts": {
+        "observe": 2,
+        "run": 3
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 32.215394020080566,
+      "server_uptime_s": 40.71164608001709,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 239,
+      "segment_ids": [
+        "libero_goal/open_the_top_drawer_and_put_the_bowl_inside/demo_20/actuate0"
+      ],
+      "fallbacks": 1,
+      "skill_statuses": [
+        "OK",
+        "GRASP_FAILED",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 45.3,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_001",
+      "task_id": 0,
+      "init_index": 1,
+      "instruction": "open the middle drawer of the cabinet",
+      "model": "auto",
+      "tool_calls": 3,
+      "tool_counts": {
+        "observe": 2,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 19.372386932373047,
+      "server_uptime_s": 27.4220769405365,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 169,
+      "segment_ids": [],
+      "fallbacks": 1,
+      "skill_statuses": [
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 32.08,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_002",
+      "task_id": 1,
+      "init_index": 0,
+      "instruction": "put the bowl on the stove",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 16.726364612579346,
+      "server_uptime_s": 24.431440591812134,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 154,
+      "segment_ids": [
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0",
+        "libero_goal/put_the_bowl_on_the_stove/demo_18/place1"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 29.03,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_003",
+      "task_id": 1,
+      "init_index": 1,
+      "instruction": "put the bowl on the stove",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 15.380635261535645,
+      "server_uptime_s": 22.97488045692444,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 157,
+      "segment_ids": [
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0",
+        "libero_goal/put_the_bowl_on_the_stove/demo_18/place1"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 27.64,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_004",
+      "task_id": 2,
+      "init_index": 0,
+      "instruction": "put the wine bottle on top of the cabinet",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 16.811973810195923,
+      "server_uptime_s": 24.712138414382935,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 186,
+      "segment_ids": [
+        "libero_goal/put_the_wine_bottle_on_the_rack/demo_44/grasp0",
+        "libero_goal/put_the_wine_bottle_on_top_of_the_cabinet/demo_33/place1"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 29.41,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_005",
+      "task_id": 2,
+      "init_index": 1,
+      "instruction": "put the wine bottle on top of the cabinet",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 10.441923141479492,
+      "server_uptime_s": 17.346081972122192,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 181,
+      "segment_ids": [
+        "libero_goal/put_the_wine_bottle_on_the_rack/demo_44/grasp0",
+        "libero_goal/put_the_wine_bottle_on_top_of_the_cabinet/demo_44/place1"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 21.26,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_006",
+      "task_id": 3,
+      "init_index": 0,
+      "instruction": "open the top drawer and put the bowl inside",
+      "model": "auto",
+      "tool_calls": 6,
+      "tool_counts": {
+        "observe": 3,
+        "run": 3
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 29.99713969230652,
+      "server_uptime_s": 40.217156410217285,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 659,
+      "segment_ids": [
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0",
+        "libero_goal/open_the_top_drawer_and_put_the_bowl_inside/demo_25/place2"
+      ],
+      "fallbacks": 2,
+      "skill_statuses": [
+        "GRASP_FAILED",
+        "OK",
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 44.39,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_007",
+      "task_id": 3,
+      "init_index": 1,
+      "instruction": "open the top drawer and put the bowl inside",
+      "model": "auto",
+      "tool_calls": 9,
+      "tool_counts": {
+        "observe": 6,
+        "run": 3
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 56.16012167930603,
+      "server_uptime_s": 63.64006233215332,
+      "error": null,
+      "done_summary": null,
+      "success": false,
+      "ended_by": "budget",
+      "sim_steps": 1102,
+      "segment_ids": [
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0",
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0"
+      ],
+      "fallbacks": 3,
+      "skill_statuses": [
+        "GRASP_FAILED",
+        "OK",
+        "OK",
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 67.82,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_008",
+      "task_id": 4,
+      "init_index": 0,
+      "instruction": "put the bowl on top of the cabinet",
+      "model": "auto",
+      "tool_calls": 3,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1,
+        "done": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 17.411741733551025,
+      "server_uptime_s": 24.011143684387207,
+      "error": null,
+      "done_summary": "Picked the bowl and placed it on top of the cabinet; observation confirms the bowl now rests atop the cabinet.",
+      "success": false,
+      "ended_by": "done",
+      "sim_steps": 368,
+      "segment_ids": [
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0",
+        "libero_goal/put_the_bowl_on_top_of_the_cabinet/demo_14/place1"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK",
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 28.21,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_009",
+      "task_id": 4,
+      "init_index": 1,
+      "instruction": "put the bowl on top of the cabinet",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 10.169654130935669,
+      "server_uptime_s": 17.064737796783447,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 322,
+      "segment_ids": [
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0",
+        "libero_goal/put_the_bowl_on_top_of_the_cabinet/demo_14/place1"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 20.91,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_010",
+      "task_id": 5,
+      "init_index": 0,
+      "instruction": "push the plate to the front of the stove",
+      "model": "auto",
+      "tool_calls": 6,
+      "tool_counts": {
+        "observe": 3,
+        "run": 3
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 41.589006185531616,
+      "server_uptime_s": 53.379709005355835,
+      "error": null,
+      "done_summary": null,
+      "success": false,
+      "ended_by": null,
+      "sim_steps": 885,
+      "segment_ids": [],
+      "fallbacks": 3,
+      "skill_statuses": [
+        "OK",
+        "OK",
+        "IK_FAILURE"
+      ],
+      "backend": "real",
+      "wall_s": 57.24,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_011",
+      "task_id": 5,
+      "init_index": 1,
+      "instruction": "push the plate to the front of the stove",
+      "model": "auto",
+      "tool_calls": 6,
+      "tool_counts": {
+        "observe": 1,
+        "run": 5
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 40.971596002578735,
+      "server_uptime_s": 52.47476148605347,
+      "error": null,
+      "done_summary": null,
+      "success": false,
+      "ended_by": null,
+      "sim_steps": 765,
+      "segment_ids": [],
+      "fallbacks": 4,
+      "skill_statuses": [
+        "OK",
+        "IK_FAILURE",
+        "TIMEOUT",
+        "IK_FAILURE",
+        "IK_FAILURE"
+      ],
+      "backend": "real",
+      "wall_s": 56.29,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_012",
+      "task_id": 6,
+      "init_index": 0,
+      "instruction": "put the cream cheese in the bowl",
+      "model": "auto",
+      "tool_calls": 8,
+      "tool_counts": {
+        "observe": 5,
+        "run": 3
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 37.893054485321045,
+      "server_uptime_s": 49.16997933387756,
+      "error": null,
+      "done_summary": null,
+      "success": false,
+      "ended_by": null,
+      "sim_steps": 166,
+      "segment_ids": [],
+      "fallbacks": 3,
+      "skill_statuses": [
+        "GRASP_FAILED",
+        "OK",
+        "GRASP_FAILED",
+        "GRASP_FAILED"
+      ],
+      "backend": "real",
+      "wall_s": 53.17,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_013",
+      "task_id": 6,
+      "init_index": 1,
+      "instruction": "put the cream cheese in the bowl",
+      "model": "auto",
+      "tool_calls": 8,
+      "tool_counts": {
+        "observe": 4,
+        "run": 4
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 42.87464499473572,
+      "server_uptime_s": 54.46890163421631,
+      "error": null,
+      "done_summary": null,
+      "success": false,
+      "ended_by": null,
+      "sim_steps": 238,
+      "segment_ids": [],
+      "fallbacks": 4,
+      "skill_statuses": [
+        "GRASP_FAILED",
+        "OK",
+        "GRASP_FAILED",
+        "GRASP_FAILED",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 58.18,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_014",
+      "task_id": 7,
+      "init_index": 0,
+      "instruction": "turn on the stove",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 6.55005955696106,
+      "server_uptime_s": 12.931660652160645,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 154,
+      "segment_ids": [
+        "libero_goal/turn_on_the_stove/demo_13/actuate0"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 16.58,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_015",
+      "task_id": 7,
+      "init_index": 1,
+      "instruction": "turn on the stove",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 8.163511276245117,
+      "server_uptime_s": 14.74725890159607,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 137,
+      "segment_ids": [
+        "libero_goal/turn_on_the_stove/demo_13/actuate0"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 18.65,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_016",
+      "task_id": 8,
+      "init_index": 0,
+      "instruction": "put the bowl on the plate",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 10.141711711883545,
+      "server_uptime_s": 16.865450382232666,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 161,
+      "segment_ids": [
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0",
+        "libero_goal/put_the_bowl_on_the_plate/demo_16/place1"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 20.69,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_017",
+      "task_id": 8,
+      "init_index": 1,
+      "instruction": "put the bowl on the plate",
+      "model": "auto",
+      "tool_calls": 2,
+      "tool_counts": {
+        "observe": 1,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 9.95616888999939,
+      "server_uptime_s": 16.73312282562256,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 159,
+      "segment_ids": [
+        "libero_goal/put_the_bowl_on_the_stove/demo_31/grasp0",
+        "libero_goal/put_the_bowl_on_the_plate/demo_16/place1"
+      ],
+      "fallbacks": 0,
+      "skill_statuses": [
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 20.66,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_018",
+      "task_id": 9,
+      "init_index": 0,
+      "instruction": "put the wine bottle on the rack",
+      "model": "auto",
+      "tool_calls": 4,
+      "tool_counts": {
+        "observe": 3,
+        "run": 1
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 17.078518629074097,
+      "server_uptime_s": 24.34596037864685,
+      "error": null,
+      "done_summary": null,
+      "success": true,
+      "ended_by": "success",
+      "sim_steps": 160,
+      "segment_ids": [
+        "libero_goal/put_the_wine_bottle_on_the_rack/demo_44/grasp0"
+      ],
+      "fallbacks": 1,
+      "skill_statuses": [
+        "OK",
+        "OK"
+      ],
+      "backend": "real",
+      "wall_s": 28.55,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    },
+    {
+      "episode": "ep_019",
+      "task_id": 9,
+      "init_index": 1,
+      "instruction": "put the wine bottle on the rack",
+      "model": "auto",
+      "tool_calls": 7,
+      "tool_counts": {
+        "observe": 4,
+        "run": 3
+      },
+      "program_errors": 0,
+      "tool_limit_hit": false,
+      "brain_wall_s": 34.46005034446716,
+      "server_uptime_s": 44.561596155166626,
+      "error": null,
+      "done_summary": null,
+      "success": false,
+      "ended_by": "budget",
+      "sim_steps": 1226,
+      "segment_ids": [
+        "libero_goal/put_the_wine_bottle_on_the_rack/demo_44/grasp0"
+      ],
+      "fallbacks": 1,
+      "skill_statuses": [
+        "OK",
+        "OK",
+        "OK",
+        "TIMEOUT",
+        "OK",
+        "TIMEOUT"
+      ],
+      "backend": "real",
+      "wall_s": 49.41,
+      "exit_code": 0,
+      "timed_out": false,
+      "sessions_deleted": 1
+    }
+  ]
+}
