@@ -173,7 +173,7 @@ class Skills:
 
     def _feasible(self, targets: np.ndarray) -> tuple[bool, str]:
         idx = np.unique(np.linspace(0, len(targets) - 1, min(len(targets), MAX_IK_WAYPOINTS)).astype(int))
-        return self.feas.check(self.env.kinematics(), targets[idx])
+        return self.feas.check(self.env.kinematics(), self.ctrl.to_site(targets[idx], 1.0))
 
     def _approach(self, T_contact: np.ndarray, lift: float = APPROACH_LIFT) -> np.ndarray:
         """Up (if needed) -> over to the pre-pose `lift` above T_contact -> descend to T_contact."""

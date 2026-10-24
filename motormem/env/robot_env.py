@@ -30,7 +30,7 @@ from motormem.types import CameraFrame, Observation, Proprio
 CAMERA_MAP = {"agentview": "agentview", "wrist": "robot0_eye_in_hand"}
 
 # gripper action sign that CLOSES each gripper actuator (from robosuite's gripper.format_action(+1)).
-_CLOSE_SIGNS = {"PandaGripper": (-1.0, 1.0), "Robotiq85Gripper": (1.0, 1.0)}
+_CLOSE_SIGNS = {"PandaGripper": (-1.0, 1.0), "Robotiq85Gripper": (1.0, 1.0), "Robotiq85LinkedGripper": (1.0, 1.0)}
 
 
 @dataclass
