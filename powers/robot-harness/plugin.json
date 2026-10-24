@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "robot-harness",
+  "version": "0.1.0",
+  "description": "Drive a simulated robot arm (LIBERO / robosuite) through three tools: observe, run a skill program, done. Motions come from recorded human demos (motor memory).",
+  "author": {
+    "name": "Motor Memory team",
+    "url": "https://github.com/srirangam-r/hackachusetts"
+  },
+  "repository": "https://github.com/srirangam-r/hackachusetts",
+  "keywords": ["robot", "robotics", "manipulation", "libero", "robosuite", "motor memory", "pick and place", "arm"]
+}
