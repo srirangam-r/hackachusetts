@@ -10,7 +10,9 @@ skills/robot-harness/SKILL.md     the robot protocol
 ```
 
 ## Requirements
-- `python` on `PATH` must import `motormem`: activate the repo venv (or `pip install -e .` in this repo).
+- `python` on `PATH` must import `motormem` and `mcp`: start Kiro from the activated repo venv (or
+  `pip install -e .`). Otherwise the `robot` server connects with no tools; set `command` in `mcp.json`
+  to the venv's absolute python path.
 - Real simulator backend: LIBERO/robosuite installed, a GPU with EGL, and a built index (`data/index/*.pkl`).
 
 ## Install
