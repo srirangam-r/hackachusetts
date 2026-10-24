@@ -14,7 +14,7 @@ from motormem import config
 from motormem.types import EpisodeSpec
 
 out = Path(tempfile.mkdtemp(prefix="dbg_session_"))
-spec = EpisodeSpec(suite="libero_goal", task_id=int(sys.argv[1]), init_index=0, perception="sam3",
+spec = EpisodeSpec(suite="libero_goal", task_id=int(sys.argv[1]), init_index=int(os.environ.get("INIT", "0")), perception="sam3",
                    index_path=str(config.INDEX_DIR / "libero_goal.pkl"), out_dir=str(out))
 (out / "spec.json").write_text(json.dumps(asdict(spec)))
 os.environ["ROBOT_EPISODE"] = str(out / "spec.json")
@@ -30,6 +30,10 @@ if len(sys.argv) > 3:
     for o in s.call("run", {"program": sys.argv[3].replace(";", "\n")}):
         if isinstance(o, str):
             print(o)
+try:  # DIAGNOSTIC ONLY (runner-side): success flag
+    print("RUNNER success:", s.backend.runner_result().get("success"))
+except Exception as e:
+    print("runner_result failed", e)
 s.shutdown()
 print("out:", out)
 if (out / "errors.log").exists():

@@ -75,8 +75,34 @@ def test_excluded_object_gives_no_candidate_or_fallback():
     assert r.status == Status.NO_CANDIDATE and "no demo of black book" in r.message
     sk = Skills(FakeEnv(), memory=view, motion_source="hybrid")
     sk._primitive_pick = lambda o: SkillResult(Status.OK, "primitive")
+    tried = []
+    sk._segment_plans = lambda seg, *a, **k: (tried.append(seg.object_name), iter(()))[1]
     r = sk.pick(_est("black book"))
     assert r.status == Status.OK and r.used_fallback
+    assert tried and "black_book" not in tried          # hybrid: other demos first, never the excluded one
+
+
+def test_hybrid_lenient_name_index_strict():
+    from motormem.memory.index import MotorMemory
+    from motormem.types import Segment, SegmentKind, SkillResult
+
+    def seg(i, kind, obj, rel=None, ext=(0.05, 0.07, 0.025)):
+        return Segment(f"s{i}", f"d{i}", "synthetic", kind, obj, rel, None, np.tile(np.eye(4), (3, 1, 1)),
+                       np.zeros(3), None, np.zeros((20, 3)), "", meta={"extent": list(ext)})
+    mem = MotorMemory([seg(0, SegmentKind.PLACE, "wine_rack", "on"), seg(1, SegmentKind.PLACE, "wooden_cabinet", "on"),
+                       seg(2, SegmentKind.GRASP, "cream_cheese"), seg(3, SegmentKind.GRASP, "wine_bottle", None, (0.03, 0.03, 0.08))])
+    assert mem.canonical("wooden rack") is None            # strict canonical: "wooden" contradicts wine_rack
+    assert mem.lenient_name("wooden rack") == "wine_rack"
+    assert mem.lenient_name("cream cheese box") == "cream_cheese"
+    assert mem.without(objects=["wine_rack"]).lenient_name("wooden rack") != "wine_rack"
+    for source, want in (("hybrid", ["s0"]), ("index", [])):
+        sk = Skills(FakeEnv(), memory=mem, motion_source=source)
+        assert [s.segment_id for s in sk._find_segments(SegmentKind.PLACE, _est("wooden rack"), relation="on")] == want
+    sk = Skills(FakeEnv(), memory=mem, motion_source="hybrid")
+    box = _est("box")
+    box.extent = np.array([0.07, 0.045, 0.02])
+    assert sk._find_segments(SegmentKind.GRASP, box)[0].object_name == "cream_cheese"   # extent ranking
+    assert Skills(FakeEnv(), memory=mem, motion_source="index")._find_segments(SegmentKind.GRASP, box) == []
 
 
 def test_place_cross_object_reuse_only_in_hybrid():
