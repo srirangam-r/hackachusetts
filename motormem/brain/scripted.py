@@ -50,6 +50,12 @@ def resolve(label: str, marks: dict[int, MarkInfo], by_height: str | None = None
     cands = [m for m in sorted(marks) if marks[m].label == label]
     if not cands:
         cands = [m for m in sorted(marks) if _matches(marks[m].label, label)]
+    if not cands:  # e.g. "drawer handle" vs a backend that labels whole drawers: match on the shared noun
+        words = set(label.split())
+        cands = [m for m in sorted(marks) if words & set(marks[m].label.split())]
+        if by_height and cands:
+            hit = [m for m in cands if by_height in marks[m].label.split()]
+            cands = hit or cands
     if not cands:
         return None
     if by_height is None or len(cands) == 1:
