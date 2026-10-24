@@ -208,7 +208,7 @@ def main(argv: list[str] | None = None) -> dict:
             for stale in ("result.json", "trace.jsonl"):
                 (ep_dir / stale).unlink(missing_ok=True)
             spec = EpisodeSpec(suite=a.suite, task_id=task, init_index=e, arm=a.arm, motion_source=a.motion_source,
-                               perception=a.perception, index_path=a.index_path, max_steps=a.max_steps, seed=e,
+                               perception=a.perception, index_path=(str(Path(a.index_path).resolve()) if a.index_path else ""), max_steps=a.max_steps, seed=e,
                                out_dir=str(ep_dir.resolve()), model=a.model)
             instr = instruction_for(spec, a.backend)
             (ep_dir / "spec.json").write_text(json.dumps({**asdict(spec), "instruction": instr,
