@@ -32,6 +32,17 @@ Our rules ([.kiro/steering/fairness.md](.kiro/steering/fairness.md)) keep the nu
 > They **may** use RGB, depth, nominal camera calibration, proprioception, wrist force/torque and the standard training demos. The offline index build may read the demos' recorded sim states to label object poses, as MimicGen does. Ground-truth poses exist only in a runner-only "rung-0" diagnostic mode, which is never reported as a result.
 > **Enforcement:** the brain is a Kiro custom agent whose only tools come from the robot MCP server (no shell, files or web). Every observation passes through `strip_privileged()`, and a property test checks that no privileged key ever reaches the agent.
 
+## Live demo: messy desk sorting from a typed prompt
+
+```bash
+env -u PYTHONPATH MUJOCO_GL=egl .venv/bin/python scripts/live.py
+```
+Opens http://localhost:8765: type a task (e.g. "open the top drawer and put the ketchup in it, then put the soup cans and the milk on the tray"), press Run, and watch the robot camera next to the Kiro brain's plan and each skill's status. Every run starts from a fresh scene; an mp4 is written to `runs/videos/`.
+
+The scene (`motormem/env/clutter_desk.py`) is a wide desk with twelve everyday items (bottles, cans, cartons, snack boxes) standing at random spots and headings, a wooden tray and a cabinet with three drawers. Nothing is on a grid; the layout is reproducible per seed. The brain sees only camera images with SAM 3 marks; it plans every step in one program, the skills check their own results, and it calls `done` itself.
+
+Scripted checks on this desk (no Kiro): top drawer opened 23 cm, ketchup picked and placed in the drawer, soup can and milk placed on the tray. `--scene grocery_sort` runs the earlier tidier grocery table (`runs/videos/live_test4.mp4`: both ketchup bottles in a basket and both soup cans on the tray from one prompt, 80 s, 6 Kiro calls).
+
 ## Results
 
 All numbers are from our own runs on this laptop. Kiro is the brain (model `auto`), SAM 3 perception, no simulator state, no success signal to the agent, no practice on test tasks. Small samples (5 episodes per task); treat differences under ~10 points as noise. Per-run tables are in [`results/`](results/).

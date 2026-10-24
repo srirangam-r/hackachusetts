@@ -1,0 +1,234 @@
+(define (problem LIBERO_Living_Room_Tabletop_Manipulation)
+  (:domain robosuite)
+  (:language open the top drawer of the cabinet and put the butter in it, then put the ketchup bottles in the basket and the soup cans on the tray)
+    (:regions
+      (wooden_cabinet_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (0.11499999999999999 -0.305 0.125 -0.295)
+            )
+          )
+          (:yaw_rotation (
+              (3.141592653589793 3.141592653589793)
+            )
+          )
+      )
+      (basket_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (0.155 0.285 0.165 0.295)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (wooden_tray_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.10500000000000001 0.295 -0.095 0.305)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (butter_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.128 -0.128 -0.11199999999999999 -0.11199999999999999)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (cream_cheese_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.128 -0.048 -0.11199999999999999 -0.032)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (chocolate_pudding_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.128 0.032 -0.11199999999999999 0.048)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (butter_2_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.128 0.11199999999999999 -0.11199999999999999 0.128)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (alphabet_soup_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.043000000000000003 -0.128 -0.027000000000000003 -0.11199999999999999)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (ketchup_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.043000000000000003 -0.048 -0.027000000000000003 -0.032)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (tomato_sauce_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.043000000000000003 0.032 -0.027000000000000003 0.048)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (alphabet_soup_2_init_region
+          (:target living_room_table)
+          (:ranges (
+              (-0.043000000000000003 0.11199999999999999 -0.027000000000000003 0.128)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (milk_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (0.042 -0.128 0.058 -0.11199999999999999)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (orange_juice_1_init_region
+          (:target living_room_table)
+          (:ranges (
+              (0.042 -0.048 0.058 -0.032)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (ketchup_2_init_region
+          (:target living_room_table)
+          (:ranges (
+              (0.042 0.032 0.058 0.048)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (milk_2_init_region
+          (:target living_room_table)
+          (:ranges (
+              (0.042 0.11199999999999999 0.058 0.128)
+            )
+          )
+          (:yaw_rotation (
+              (0.0 0.0)
+            )
+          )
+      )
+      (top_side
+          (:target wooden_cabinet_1)
+      )
+      (top_region
+          (:target wooden_cabinet_1)
+      )
+      (middle_region
+          (:target wooden_cabinet_1)
+      )
+      (bottom_region
+          (:target wooden_cabinet_1)
+      )
+      (contain_region
+          (:target basket_1)
+      )
+      (contain_region
+          (:target wooden_tray_1)
+      )
+    )
+
+  (:fixtures
+    living_room_table - living_room_table
+    wooden_cabinet_1 - wooden_cabinet
+  )
+
+  (:objects
+    ketchup_1 ketchup_2 - ketchup
+    alphabet_soup_1 alphabet_soup_2 - alphabet_soup
+    butter_1 butter_2 - butter
+    milk_1 milk_2 - milk
+    orange_juice_1 - orange_juice
+    tomato_sauce_1 - tomato_sauce
+    cream_cheese_1 - cream_cheese
+    chocolate_pudding_1 - chocolate_pudding
+    basket_1 - basket
+    wooden_tray_1 - wooden_tray
+  )
+
+  (:obj_of_interest
+    ketchup_1
+  )
+
+  (:init
+    (On wooden_cabinet_1 living_room_table_wooden_cabinet_1_init_region)
+    (On basket_1 living_room_table_basket_1_init_region)
+    (On wooden_tray_1 living_room_table_wooden_tray_1_init_region)
+    (On butter_1 living_room_table_butter_1_init_region)
+    (On cream_cheese_1 living_room_table_cream_cheese_1_init_region)
+    (On chocolate_pudding_1 living_room_table_chocolate_pudding_1_init_region)
+    (On butter_2 living_room_table_butter_2_init_region)
+    (On alphabet_soup_1 living_room_table_alphabet_soup_1_init_region)
+    (On ketchup_1 living_room_table_ketchup_1_init_region)
+    (On tomato_sauce_1 living_room_table_tomato_sauce_1_init_region)
+    (On alphabet_soup_2 living_room_table_alphabet_soup_2_init_region)
+    (On milk_1 living_room_table_milk_1_init_region)
+    (On orange_juice_1 living_room_table_orange_juice_1_init_region)
+    (On ketchup_2 living_room_table_ketchup_2_init_region)
+    (On milk_2 living_room_table_milk_2_init_region)
+  )
+
+  (:goal
+    (And (In ketchup_1 basket_1_contain_region))
+  )
+
+)

@@ -17,6 +17,7 @@ from motormem.skills.feasibility import Feasibility
 from motormem.types import ObjectEstimate, Segment, SegmentKind, SkillResult, Status
 
 APPROACH_LIFT = 0.08      # pre-pose height above the first contact waypoint
+DEMO_ATTEMPT_STEPS = 200   # sim steps per demo grasp attempt before trying the next one or the geometric grasp
 LIFT = 0.10               # lift after grasp / retreat after release
 CONTACT_RADIUS = 0.06     # segment poses within this distance of the gripper event = "contact part"
 NEAR_TIE = 0.02           # registration hypotheses within this fitness of the best are near-ties
@@ -93,6 +94,21 @@ def rot_angle(Ra: np.ndarray, Rb: np.ndarray) -> float:
     return float(np.arccos(np.clip((np.trace(Ra.T @ Rb) - 1) / 2, -1, 1)))
 
 
+def _same_rest_pose(seg, obj: ObjectEstimate) -> bool:
+    """A demo grasp is only valid if the object rests the same way up as in the demo (an upright bottle vs a
+    lying one). Compared by height: the live object's measured height vs the demo object's stored points.
+    Live points are a partial view and can only under-estimate height, so only the clear case is rejected:
+    the live object is much taller than the demo object (it stands where the demo one was lying)."""
+    P = seg.object_points
+    if P is None or len(P) < 10 or obj.extent is None:
+        return True
+    h_demo = float(P[:, 2].max() - P[:, 2].min())
+    h_live = float(obj.points_world[:, 2].max() - obj.points_world[:, 2].min()) if len(obj.points_world) else 0.0
+    if h_demo < 0.02 or h_live < 0.02:
+        return True
+    return h_live / h_demo <= 1.8
+
+
 def _typical_first(segs: list) -> list:
     """Try first the grasp segments whose close point lies inside the object's own height range.
 
@@ -110,6 +126,33 @@ def _typical_first(segs: list) -> list:
         return float(P[:, 2].min()) - 0.002 <= z <= float(P[:, 2].max()) - 0.002
 
     return sorted(segs, key=lambda s: 0 if inside(s) else 1)
+
+
+def _recentre_round(obj: ObjectEstimate) -> ObjectEstimate:
+    """A camera sees only the near half of a round object (can, cup), so the centroid of the visible points
+    sits ~r/2 too close to the camera. For roughly round footprints, use a least-squares circle fit of the
+    points' xy instead. Pure geometry; returns obj unchanged for non-round objects or bad fits."""
+    import copy
+    P = obj.points_world
+    ext = np.asarray(obj.extent, float)
+    if P is None or len(P) < 30 or min(ext[0], ext[1]) < 0.035 or abs(ext[0] - ext[1]) > 0.02:
+        return obj
+    xy = P[:, :2]
+    A = np.c_[2 * xy, np.ones(len(xy))]
+    b = (xy ** 2).sum(1)
+    try:
+        cx, cy, c = np.linalg.lstsq(A, b, rcond=None)[0]
+    except np.linalg.LinAlgError:
+        return obj
+    r = float(np.sqrt(max(c + cx ** 2 + cy ** 2, 0.0)))
+    c0 = obj.T_world_obj[:3, 3]
+    shift = np.array([cx, cy]) - c0[:2]
+    if not (0.02 < r < 0.06) or np.linalg.norm(shift) > 0.03:
+        return obj
+    out = copy.copy(obj)
+    out.T_world_obj = obj.T_world_obj.copy()
+    out.T_world_obj[:2, 3] = [cx, cy]
+    return out
 
 
 class Skills:
@@ -400,19 +443,28 @@ class Skills:
             return SkillResult(Status.PERCEPTION_FAILED, f"pick: too few points on mark {obj.mark}")
         self._last_reason = ""
         if self._use_index():
-            segs = _typical_first(self._find_segments(SegmentKind.GRASP, obj))
+            segs = _typical_first([s for s in self._find_segments(SegmentKind.GRASP, obj) if _same_rest_pose(s, obj)])
             if not segs and self.motion_source == "index":
                 return SkillResult(Status.NO_CANDIDATE, f"pick: no demo of {obj.label} in motor memory")
             n_tried, failed = 0, None
             for plan in self._grasp_plans(obj, segs):
                 n_tried += 1
-                res = self._do_grasp(plan, obj)
-                if res.status == Status.OK or n_tried >= 2:
+                # cap each demo attempt so a stuck one leaves budget for the next attempt / the geometric grasp
+                self.ctrl.set_budget(DEMO_ATTEMPT_STEPS)
+                try:
+                    res = self._do_grasp(plan, obj)
+                except StepBudgetExceeded:
+                    res = SkillResult(Status.TIMEOUT, "pick: demo grasp got stuck", segment_id=plan.segment_id)
+                finally:
+                    self.ctrl.set_budget(self.step_budget)
+                if res.status == Status.OK:
                     return res
                 failed = res
                 self._ensure_open()
                 self.ctrl.track(self._lifted(self.ctrl.pose(), 0.05), -1.0)
-            if failed is not None:
+                if n_tried >= 2:
+                    break
+            if failed is not None and self.motion_source == "index":
                 return failed
             if self.motion_source == "index":
                 st = Status.IK_FAILURE if self._last_reason else Status.NO_CANDIDATE
@@ -481,11 +533,17 @@ class Skills:
         opts = []
         if ext[1] <= width - 0.015:
             # across the short horizontal axis at ~40% of the height (at most 3.5 cm below the top), with
-            # the fingertips clear of the table
+            # the fingertips clear of the table; in clutter, also try closing directions rotated off the minor
+            # axis (as long as the object still fits) and keep the ones whose open fingers have room
             h = max(float(ext[2]), float(z_top - z_bot), 0.005)
             z = max(z_top - min(0.6 * h, 0.035), z_top - h + 0.008)
-            for s in (1, -1):
-                opts.append(("center", g.make_pose([c[0], c[1], z], topdown_rotation(s * minor, col))))
+            for ang in (0.0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, np.pi / 2):
+                u = np.cos(ang) * minor + np.sin(ang) * ax
+                span = abs(np.cos(ang)) * ext[1] + abs(np.sin(ang)) * ext[0]
+                if ang and span > width - 0.01:
+                    continue
+                for s in (1, -1):
+                    opts.append(("center", g.make_pose([c[0], c[1], z], topdown_rotation(s * u, col))))
         else:  # too wide: grasp the rim/edge, fingers closing radially
             z = max(z_top - 0.02 - GRIPPER_RIM_EXTRA_DEPTH.get(self.ctrl.gripper_key(), 0.0), z_bot + 0.012)
             for u, half in ((ax, ext[0] / 2), (-ax, ext[0] / 2), (minor, ext[1] / 2), (-minor, ext[1] / 2)):
@@ -495,9 +553,45 @@ class Skills:
             # prefer edges nearest the robot (more reachable)
             opts.sort(key=lambda o: np.linalg.norm(o[1][:2, 3] - base_xy))
         opts.sort(key=lambda o: (o[0] != "center", rot_angle(R_cur, o[1][:3, :3]) + 2.0 * np.linalg.norm(o[1][:2, 3] - base_xy)))
-        return opts
+        hits = self._finger_hits(obj, [T for _, T in opts], width)
+        order = sorted(range(len(opts)), key=lambda i: (hits[i] > 3, i))   # clear options first, keep order
+        return [opts[i] for i in order]
+
+    def _finger_hits(self, obj: ObjectEstimate, grasps: list, width: float) -> list[int]:
+        """For each top-down grasp, how many depth points (not on the object) lie where the open fingers
+        descend. Uses only the agentview depth of the current observation."""
+        from scipy.spatial import cKDTree
+        try:
+            cam = self.ctrl.obs.cameras["agentview"]
+            P = g.deproject(cam.depth, cam.K, cam.T_world_cam, stride=2)
+        except Exception:
+            return [0] * len(grasps)
+        c = obj.T_world_obj[:3, 3]
+        P = P[np.linalg.norm(P[:, :2] - c[:2], axis=1) < 0.16]
+        if len(P) == 0 or obj.points_world is None or len(obj.points_world) == 0:
+            return [0] * len(grasps)
+        d, _ = cKDTree(obj.points_world).query(P)
+        P = P[d > 0.012]
+        out = []
+        _, col = self._gripper_geometry()
+        for T in grasps:
+            u = T[:3, col] / (np.linalg.norm(T[:3, col]) + 1e-9)
+            n = 0
+            for s in (1, -1):
+                f = T[:3, 3] + s * u * (width / 2 + 0.008)
+                near = np.linalg.norm(P[:, :2] - f[:2], axis=1) < 0.013
+                n += int((near & (P[:, 2] > T[2, 3] - 0.01)).sum())
+            # the hand body above the fingers is ~20 cm wide along the closing axis and ~6 cm thick
+            v = np.cross([0.0, 0.0, 1.0], u)
+            rel = P[:, :2] - T[:2, 3]
+            along, across = rel @ u[:2], rel @ v[:2]
+            palm = (np.abs(along) < 0.10) & (np.abs(across) < 0.035) & (P[:, 2] > T[2, 3] + 0.045)
+            n += int(palm.sum())
+            out.append(n)
+        return out
 
     def _primitive_pick(self, obj: ObjectEstimate) -> SkillResult:
+        obj = _recentre_round(obj)
         if obj.points_world is None or len(obj.points_world) < 20:
             return SkillResult(Status.PERCEPTION_FAILED, f"pick: too few points on mark {obj.mark}")
         reason = ""
@@ -585,8 +679,19 @@ class Skills:
         last = None
         for i, (seg_id, fallback, info, plan) in enumerate(attempts):
             if plan is not None:
-                self._execute(plan, close=False)
-                res = self._finish_place(target, relation, seg_id, fallback, info)
+                self.ctrl.set_budget(int(DEMO_ATTEMPT_STEPS * 1.5))
+                try:
+                    self._execute(plan, close=False)
+                    res = self._finish_place(target, relation, seg_id, fallback, info)
+                except StepBudgetExceeded:
+                    self.ctrl.set_budget(self.step_budget)
+                    if self.ctrl.holding():            # demo path got stuck while still holding: geometric place
+                        res = self._primitive_place(target, relation)
+                        res.used_fallback = True
+                    else:
+                        res = SkillResult(Status.TIMEOUT, "place: demo path got stuck", segment_id=seg_id)
+                finally:
+                    self.ctrl.set_budget(self.step_budget)
             else:
                 res = self._primitive_place(target, relation)
                 res.used_fallback = True
