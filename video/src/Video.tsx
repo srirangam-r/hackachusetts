@@ -57,11 +57,11 @@ const Stat: React.FC<{who: string; v: string; delay: number; color?: string}> = 
 const Problem = () => (
   <Page>
     <Fade><H>Robot foundation models memorize their training scenes.</H></Fade>
-    <Fade delay={15}><Sub>Move the objects or change the goal (LIBERO-Pro), and fine-tuned VLAs fall apart:</Sub></Fade>
+    <Fade delay={15}><Sub>They score 79 to 98% on LIBERO-Goal. Give them a new instruction in the same scenes (LIBERO-Pro):</Sub></Fade>
     <div style={{display: 'flex', gap: 60, marginTop: 70}}>
       <Stat who="OpenVLA" v="0%" delay={40} />
       <Stat who="π0" v="0%" delay={55} />
-      <Stat who="π0.5, on average" v="13%" delay={70} />
+      <Stat who="π0.5" v="≈2%" delay={70} />
     </div>
     <Fade delay={120}><Sub>Frontier models reason far better, but they can't move a robot precisely. So split the job.</Sub></Fade>
   </Page>
@@ -171,29 +171,34 @@ const Edit = () => (
 );
 const Slope = () => {
   const p = useIn(25);
-  const W = 1080, H = 620, x0 = 150, x1 = 760, top = 30, bot = 520;
+  const W = 1080, H = 620, top = 30, bot = 520;
+  const xs = [150, 460, 770];
   const y = (v: number) => top + ((100 - v) / 100) * (bot - top);
-  const band = (a: number[], b: number[]) => `${x0},${y(a[1])} ${x1},${y(b[1])} ${x1},${y(b[0])} ${x0},${y(a[0])}`;
-  const clipW = x0 - 20 + (x1 - x0 + 40) * p;
+  const pts = (vals: number[]) => vals.map((v, i) => `${xs[i]},${y(v)}`).join(' ');
+  const band = `${pts(results.vla_top)} ${results.vla_bottom.map((v, i) => `${xs[i]},${y(v)}`).reverse().join(' ')}`;
+  const clipW = xs[0] - 20 + (xs[2] - xs[0] + 40) * p;
+  const last = xs.length - 1;
   return (
     <svg width={W} height={H} style={{overflow: 'visible', fontFamily: SANS}}>
       <defs><clipPath id="reveal"><rect x={0} y={0} width={clipW} height={H} /></clipPath></defs>
       {[0, 50, 100].map((v) => (
         <g key={v}>
-          <line x1={x0 - 30} x2={x1 + 30} y1={y(v)} y2={y(v)} stroke={C.rule} strokeWidth={2} />
-          <text x={x0 - 44} y={y(v) + 9} fontSize={26} fill={C.ink2} textAnchor="end">{v}%</text>
+          <line x1={xs[0] - 30} x2={xs[last] + 30} y1={y(v)} y2={y(v)} stroke={C.rule} strokeWidth={2} />
+          <text x={xs[0] - 44} y={y(v) + 9} fontSize={26} fill={C.ink2} textAnchor="end">{v}%</text>
         </g>
       ))}
       <g clipPath="url(#reveal)">
-        <polygon points={band(results.known.vla, results.changed.vla)} fill="#9aa6b1" fillOpacity={0.25} stroke="#7d8893" strokeWidth={4} strokeLinejoin="round" />
-        <polygon points={band(results.known.ours, results.changed.ours)} fill={C.demo} fillOpacity={0.3} stroke={C.demo} strokeWidth={6} strokeLinejoin="round" />
+        <polygon points={band} fill="#9aa6b1" fillOpacity={0.3} stroke="#7d8893" strokeWidth={4} strokeLinejoin="round" />
+        <polyline points={pts(results.ours)} fill="none" stroke={C.demo} strokeWidth={8} strokeLinejoin="round" strokeLinecap="round" />
+        {results.ours.map((v, i) => <circle key={i} cx={xs[i]} cy={y(v)} r={11} fill={C.demo} />)}
       </g>
       <g opacity={interpolate(p, [0.8, 1], [0, 1], {extrapolateLeft: 'clamp'})}>
-        <text x={x1 + 24} y={y((results.changed.vla[0] + results.changed.vla[1]) / 2) + 10} fontSize={32} fontWeight={700} fill="#56626e">Fine-tuned VLAs</text>
-        <text x={x1 + 24} y={y((results.changed.ours[0] + results.changed.ours[1]) / 2) + 10} fontSize={32} fontWeight={700} fill={C.demo}>Motor Memory</text>
+        <text x={xs[last] + 26} y={y(results.ours[last]) + 10} fontSize={32} fontWeight={700} fill={C.demo}>Motor Memory</text>
+        <text x={xs[last] + 26} y={y(results.vla_top[last]) + 22} fontSize={32} fontWeight={700} fill="#56626e">Fine-tuned VLAs</text>
       </g>
-      <text x={x0} y={bot + 60} fontSize={30} fontWeight={600} fill={C.ink} textAnchor="middle">Layouts seen in training</text>
-      <text x={x1} y={bot + 60} fontSize={30} fontWeight={600} fill={C.ink} textAnchor="middle">Objects moved or goal changed</text>
+      {results.conditions.map((c, i) => (
+        <text key={c} x={xs[i]} y={bot + 60} fontSize={30} fontWeight={600} fill={C.ink} textAnchor="middle">{c}</text>
+      ))}
     </svg>
   );
 };
@@ -204,16 +209,16 @@ const Results = () => (
       <Slope />
       <div style={{flex: 1, display: 'grid', gap: 34, paddingTop: 10}}>
         <Fade delay={70}>
-          <div style={{fontSize: 32, fontWeight: 700}}>On familiar layouts, VLAs are ahead.</div>
+          <div style={{fontSize: 32, fontWeight: 700}}>On familiar tasks, VLAs are ahead.</div>
           <div style={{fontSize: 27, color: C.ink2, lineHeight: 1.35, marginTop: 8}}>Our gap sits in parts we can improve one at a time: grasps, drawer handles, insertion, perception. No retraining.</div>
         </Fade>
         <Fade delay={130}>
-          <div style={{fontSize: 32, fontWeight: 700, color: C.demo}}>When things change, they collapse. We degrade far less.</div>
-          <div style={{fontSize: 27, color: C.ink2, lineHeight: 1.35, marginTop: 8}}>Same harness, no practice on the test tasks, no simulator state.</div>
+          <div style={{fontSize: 32, fontWeight: 700, color: C.demo}}>When the scene changes, we hold up.</div>
+          <div style={{fontSize: 27, color: C.ink2, lineHeight: 1.35, marginTop: 8}}>Moved objects: on par with the best VLA, while the other two fall to zero. New instructions: every VLA falls to about zero; we still solve about a quarter. No practice on the test tasks.</div>
         </Fade>
       </div>
     </div>
-    <Fade delay={180}><p style={{fontSize: 20, color: C.ink2, marginTop: 18}}>VLAs: published LIBERO-Goal and LIBERO-Pro results. Ours: our runs, 5 episodes per task, Kiro brain, SAM 3 perception.</p></Fade>
+    <Fade delay={180}><p style={{fontSize: 20, color: C.ink2, marginTop: 18}}>VLAs (OpenVLA, π0, π0.5): published LIBERO-Goal and LIBERO-Pro results. Ours: 50 episodes per condition at LIBERO-Pro's 300-step limit, Kiro brain, SAM 3 perception.</p></Fade>
   </Page>
 );
 const KIRO: [string, string, string][] = [

@@ -1,0 +1,10 @@
+{
+  "name": "fix_pro_swap_panda",
+  "episodes": 50,
+  "success": 25,
+  "rate": 0.5,
+  "mean_tool_calls": 3.76,
+  "mean_brain_s": 21.22833113193512,
+  "index_motions": 80,
+  "primitive_motions": 56
+}

@@ -59,16 +59,22 @@ Scripted checks on this desk (no Kiro): top drawer opened 23 cm, ketchup picked 
 
 ## Results
 
-All numbers are from our own runs on this laptop. Kiro is the brain (model `auto`), SAM 3 perception, no simulator state, no success signal to the agent, no practice on test tasks. Small samples (5 episodes per task); treat differences under ~10 points as noise. Per-run tables are in [`results/`](results/).
+Our own runs on this laptop: Panda, Kiro as the brain (model `auto`), SAM 3 perception, no simulator state, no success signal to the agent, no practice on the test tasks. Each row is LIBERO-Goal's 10 tasks x 5 initial states = 50 episodes; LIBERO-Pro uses the same tasks with the objects moved (position perturbation) or new instructions (task perturbation).
 
-**Before the "keep it simple" pivot** (contact proposals + self-checking skills, in progress):
+| | Ours, 300 steps (LIBERO-Pro limit) | Ours, 900 steps | OpenVLA | π0 | π0.5 |
+|---|---|---|---|---|---|
+| LIBERO-Goal, familiar tasks | 62% (31/50) | 70% (35/50) | 79.2% (98% in the LIBERO-Pro paper) | 95.8% | 98.0% |
+| LIBERO-Pro, moved objects | **40%** (20/50) | 50% (25/50) | 0% | 0% | 38% |
+| LIBERO-Pro, new instructions | **24%** (12/50) | 26% (13/50) | 0% | 0% | 0% (≈2%) |
 
-| experiment | success | mean Kiro tool calls | notes |
-|---|---|---|---|
-| LIBERO-Goal, Panda (10 tasks x 5 inits) | 33/50 (66%) | 3.8 | 5/5 on bowl->stove, bottle->cabinet, bowl->plate, open middle drawer; 0/5 open top drawer + bowl inside |
-| LIBERO-Goal, **UR5e** (same Panda demos, zero UR5e demos) | 30/50 (60%) | 3.3 | same index, same code; wine bottle -> rack 5/5 |
-| LIBERO-Pro Goal, moved objects (position perturbation) | 15/50 (30%) | 2.6 | pi0.5 averages 13% across LIBERO-Pro perturbations (0-38% per cell); OpenVLA / pi0 0% |
-| LIBERO-Pro Goal, new instructions (task perturbation) | 6/50 (12%) | 2.9 | most new goals involve drawers and the cream cheese, our weakest skills |
+What this shows:
+- **On familiar tasks, fine-tuned VLAs are ahead.** Our losses sit in specific parts of the harness (drawer handles, box grasps, insertion, missing perception labels; see the diagnostic ladder below). Each is a module that can be improved, or given a demo, without retraining anything.
+- **When the scene changes, the VLAs collapse and we hold up.** At the same 300-step limit, OpenVLA and π0 drop to 0% on moved objects and π0.5 to 38%; on new instructions all three are at about 0%. We keep 40% and 24%. Nothing was tuned on these tasks.
+- **Cheap:** 3.2 to 4.3 Kiro tool calls per episode on average.
+
+The 300-step column counts the episodes of the same runs that succeeded within their first 300 sim steps (episodes end on success); see [`results/step_limits.md`](results/step_limits.md). VLA numbers are the published ones (the OpenVLA and openpi LIBERO results, and the LIBERO-Pro paper). With 5 episodes per task, treat differences under ~10 points as noise. Per-run tables are in [`results/`](results/).
+
+**Same demos, different robot:** on LIBERO-Goal a UR5e with zero UR5e demos reached 30/50 (60%) in an earlier run before the final fixes ([`results/goal_ur5e`](results/goal_ur5e/summary.md)); wine bottle -> rack 5/5.
 
 **Diagnostic ladder** (scripted programs, no Kiro calls; 3 inits per task; not results, used to find where failures come from): with ground-truth poses vs SAM 3 vs the Kiro brain, the brain beat the script on 9 of 20 task-arm pairs (recovery, choosing push targets), so the remaining losses are in contact skills (drawer handle, box grasp, push distance, bottle placement) and perception (missing labels), which is what the pivot targets. See `docs/architecture.md`.
 
@@ -78,7 +84,7 @@ All numbers are from our own runs on this laptop. Kiro is the brain (model `auto
 | Perception (Grounding DINO + SAM 2.1 fallback, before SAM 3 access) | bowl, plate, bottle, stove 20/20; cream cheese, wine rack, cabinet 0/20 | `runs/perception_check/report.md` |
 | SAM 3 noun retry (generic prompt variants) | wine rack 0/3 -> 3/3, cream cheese 0/3 -> 3/3, black bowl 6/9 -> 9/9 frames | `logs/report_percep.md` |
 | Editability (desk scene, black book) | demos removed + index-only: `NO_CANDIDATE: no demo of black book in motor memory`; all demos: picked with a STUDY_SCENE3 book demo and placed in the caddy | `runs/videos/editability.jsonl` |
-| Desk sorting, industrial bin sorting | early runs only, being redone after the pivot | `runs/videos/results.jsonl` |
+| Live demo, messy desk (free-text tasks) | e.g. open the drawer, put the butter in, close it, put the orange juice in the tray: done in 67 s with 8 Kiro calls, after one missed grasp that Kiro retried | `runs/live/` |
 
 `runs/` and `data/` are git-ignored; they live in the main checkout.
 

@@ -6,7 +6,7 @@
 
 ## Text description
 
-Robot foundation models (VLAs) are fine-tuned per robot and per benchmark, and they mostly memorize. Move the objects on LIBERO-Pro and π0.5 falls to around 13% on average, while OpenVLA and π0 fall to 0%. Frontier vision-language models reason far better but can't move a robot precisely. Systems that let them write code reach high scores only after practicing each test task with the simulator's success signal.
+Robot foundation models (VLAs) are fine-tuned per robot and per benchmark, and they mostly memorize. They score 79–98% on LIBERO-Goal, but on LIBERO-Pro, OpenVLA and π0 fall to 0% when the objects move, and all three (with π0.5) fall to about 0% when the instruction changes. Frontier vision-language models reason far better but can't move a robot precisely. Systems that let them write code reach high scores only after practicing each test task with the simulator's success signal.
 
 Motor Memory makes the action layer deliberately simple:
 - **What:** a frontier model running inside Kiro (headless `kiro-cli`, a custom `robot-brain` agent restricted to one MCP server) reads the instruction and two camera images with numbered object marks. It writes a 2–3 line program such as `pick(2, part="handle")` / `place(5, "in")`. It never generates code.
@@ -19,7 +19,15 @@ What this gives:
 - **Cross-embodiment:** the same Panda demos run on a UR5e with zero UR5e demos.
 - **Editable and traceable:** delete an object's demos and the skill disappears (`NO_CANDIDATE`); add one and it comes back. Every motion traces to a demo id or to "geometry".
 
-Results so far: RESULTS_TABLE
+Results (Panda, Kiro brain, SAM 3, no simulator state, no practice on the test tasks; 50 episodes per row, at LIBERO-Pro's 300-step limit):
+
+| | Motor Memory | OpenVLA | π0 | π0.5 |
+|---|---|---|---|---|
+| LIBERO-Goal, familiar tasks | 62% | 79.2% | 95.8% | 98.0% |
+| LIBERO-Pro, moved objects | 40% | 0% | 0% | 38% |
+| LIBERO-Pro, new instructions | 24% | 0% | 0% | ≈2% |
+
+Fine-tuned VLAs are ahead on the tasks they were trained on; our gap is in specific skills (drawer handles, box grasps, insertion, perception) that can be improved one at a time without retraining. When the scene or the instruction changes, the VLAs collapse and Motor Memory holds up. With a 900-step limit we reach 70%, 50% and 26%. Details: README → Results.
 
 Applications shown: a cluttered desk sort (books into a caddy, mugs on a tray) and an industrial kitting task (sorting parts into bins on a UR5e). Teaching a new part means recording one demo, not retraining a model.
 

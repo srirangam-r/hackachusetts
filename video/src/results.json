@@ -1,5 +1,7 @@
 {
-  "_note": "Success rates (%) for the results slope chart. VLAs: published LIBERO-Goal scores (OpenVLA 79, pi0 96, pi0.5 98) and LIBERO-Pro position/task cells (0-38). Ours: LIBERO-Goal Panda (final_goal_panda) and LIBERO-Pro objects moved / new goal (fix_pro_swap_panda, fix_pro_task_panda). Update with the final runs before rendering.",
-  "known": {"vla": [79, 98], "ours": [72, 72]},
-  "changed": {"vla": [0, 38], "ours": [26, 50]}
+  "_note": "Success rates (%) for the results chart. VLAs: published LIBERO-Goal (OpenVLA 79.2, pi0 95.8, pi0.5 98.0) and LIBERO-Pro (moved objects: 0, 0, 38; new instructions: 0, 0, ~2). Ours: final Panda runs at LIBERO-Pro's 300-step limit (results/step_limits.md).",
+  "conditions": ["Familiar tasks", "Objects moved", "New instructions"],
+  "vla_top": [98, 38, 2],
+  "vla_bottom": [79.2, 0, 0],
+  "ours": [62, 40, 24]
 }

@@ -1,0 +1,10 @@
+{
+  "name": "fix_goal_panda",
+  "episodes": 50,
+  "success": 35,
+  "rate": 0.7,
+  "mean_tool_calls": 3.2,
+  "mean_brain_s": 16.656655158996582,
+  "index_motions": 72,
+  "primitive_motions": 41
+}
